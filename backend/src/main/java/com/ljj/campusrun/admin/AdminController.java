@@ -53,12 +53,6 @@ public class AdminController {
         return ApiResponse.ok("学生状态已更新", adminService.updateStudentStatus(principal.user().getId(), studentId, request));
     }
 
-    @PostMapping("/students/{studentId}/reset-binding")
-    public ApiResponse<Object> resetStudentBinding(@AuthenticationPrincipal AppUserPrincipal principal,
-                                                   @PathVariable Long studentId) {
-        return ApiResponse.ok("微信绑定已重置", adminService.resetStudentBinding(principal.user().getId(), studentId));
-    }
-
     @GetMapping("/posts/pending")
     public ApiResponse<Object> pendingPosts() {
         return ApiResponse.ok(adminService.listPendingPosts());

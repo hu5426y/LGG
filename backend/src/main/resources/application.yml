@@ -1,8 +1,6 @@
 spring:
   application:
     name: campus-run-backend
-  profiles:
-    default: dev
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
@@ -50,11 +48,6 @@ campusrun:
   jwt:
     secret: ${CAMPUSRUN_JWT_SECRET:}
     expiration-minutes: ${CAMPUSRUN_JWT_EXPIRATION_MINUTES:120}
-  wechat:
-    enabled: ${CAMPUSRUN_WECHAT_ENABLED:false}
-    app-id: ${CAMPUSRUN_WECHAT_APP_ID:}
-    app-secret: ${CAMPUSRUN_WECHAT_APP_SECRET:}
-    ticket-ttl-minutes: ${CAMPUSRUN_WECHAT_TICKET_TTL_MINUTES:10}
   ranking:
     ttl-minutes: ${CAMPUSRUN_RANKING_TTL_MINUTES:30}
   run:
@@ -71,9 +64,3 @@ campusrun:
   students:
     import:
       default-status: ${CAMPUSRUN_STUDENT_IMPORT_DEFAULT_STATUS:ACTIVE}
-  bootstrap-admin:
-    enabled: ${CAMPUSRUN_BOOTSTRAP_ADMIN_ENABLED:false}
-    username: ${CAMPUSRUN_BOOTSTRAP_ADMIN_USERNAME:}
-    password: ${CAMPUSRUN_BOOTSTRAP_ADMIN_PASSWORD:}
-    display-name: ${CAMPUSRUN_BOOTSTRAP_ADMIN_DISPLAY_NAME:系统管理员}
-    college: ${CAMPUSRUN_BOOTSTRAP_ADMIN_COLLEGE:平台运营中心}

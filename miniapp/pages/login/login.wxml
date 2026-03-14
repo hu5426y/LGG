@@ -2,7 +2,7 @@
   <view class="hero-card login-hero">
     <view class="eyebrow login-eyebrow">Campus Run</view>
     <view class="hero-title">校园乐跑</view>
-    <view class="hero-subtitle login-subtitle">当前版本先把账号密码主流程跑通，微信授权登录保留为正式版能力。</view>
+    <view class="hero-subtitle login-subtitle">本地版默认使用账号密码登录，便于快速联调后端、后台和小程序页面。</view>
   </view>
 
   <view class="panel-card">
@@ -23,12 +23,6 @@
   </view>
 
   <view class="panel-card">
-    <view class="section-title">微信登录</view>
-    <view class="muted reserve-copy">正式版将接入微信授权登录和学号绑定，本轮仅保留入口占位。</view>
-    <button class="ghost-button" bindtap="handleWechatPlaceholder">查看微信登录说明</button>
-  </view>
-
-  <view class="panel-card">
     <view class="section-title">测试账号</view>
     <view class="pill-row">
       <block wx:for="{{devAccounts}}" wx:key="username">
@@ -43,4 +37,3 @@
       </block>
     </view>
   </view>
-</view>

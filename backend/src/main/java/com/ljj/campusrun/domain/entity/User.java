@@ -7,7 +7,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
-import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -43,14 +42,6 @@ public class User extends BaseEntity {
 
     @Column(length = 255)
     private String bio;
-
-    @Column(length = 128, unique = true)
-    private String wechatOpenid;
-
-    @Column(length = 128)
-    private String wechatUnionid;
-
-    private LocalDateTime wechatBoundAt;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)

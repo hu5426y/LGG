@@ -100,14 +100,6 @@ Page({
     }
   },
 
-  handleWechatPlaceholder() {
-    wx.showModal({
-      title: '微信登录预留中',
-      content: '当前展示版本优先开放账号密码登录。真实微信授权登录将在正式版接入后启用。',
-      showCancel: false
-    })
-  },
-
   copyApiAddress() {
     wx.setClipboardData({
       data: this.data.apiBaseUrl

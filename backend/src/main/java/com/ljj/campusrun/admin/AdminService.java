@@ -124,18 +124,6 @@ public class AdminService {
         return mapStudent(saved);
     }
 
-    @Transactional
-    public Object resetStudentBinding(Long adminUserId, Long studentId) {
-        User operator = getAdmin(adminUserId);
-        User student = getStudentEntity(studentId);
-        student.setWechatOpenid(null);
-        student.setWechatUnionid(null);
-        student.setWechatBoundAt(null);
-        User saved = userRepository.save(student);
-        auditLogService.log(operator, "RESET_STUDENT_BINDING", "sys_user", String.valueOf(saved.getId()), "重置微信绑定");
-        return mapStudent(saved);
-    }
-
     @Transactional(readOnly = true)
     public Object listPendingPosts() {
         return feedPostRepository.findByReviewStatusOrderByCreatedAtDesc(ReviewStatus.PENDING).stream()
@@ -216,8 +204,6 @@ public class AdminService {
         data.put("points", user.getPoints());
         data.put("levelValue", user.getLevelValue());
         data.put("status", user.getStatus());
-        data.put("wechatBound", user.getWechatOpenid() != null && !user.getWechatOpenid().isBlank());
-        data.put("wechatBoundAt", user.getWechatBoundAt());
         return data;
     }
 

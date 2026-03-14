@@ -12,8 +12,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByStudentNo(String studentNo);
 
-    Optional<User> findByWechatOpenid(String wechatOpenid);
-
     boolean existsByRole(UserRole role);
 
     List<User> findByRole(UserRole role);
