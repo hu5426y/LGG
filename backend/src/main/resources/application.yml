@@ -1,0 +1,79 @@
+spring:
+  application:
+    name: campus-run-backend
+  profiles:
+    default: dev
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    encoding: UTF-8
+    locations: ${SPRING_FLYWAY_LOCATIONS:classpath:db/migration}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST}
+      port: ${SPRING_DATA_REDIS_PORT}
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: 8080
+
+springdoc:
+  api-docs:
+    enabled: ${CAMPUSRUN_SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${CAMPUSRUN_SWAGGER_ENABLED:false}
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+campusrun:
+  jwt:
+    secret: ${CAMPUSRUN_JWT_SECRET:}
+    expiration-minutes: ${CAMPUSRUN_JWT_EXPIRATION_MINUTES:120}
+  wechat:
+    enabled: ${CAMPUSRUN_WECHAT_ENABLED:false}
+    app-id: ${CAMPUSRUN_WECHAT_APP_ID:}
+    app-secret: ${CAMPUSRUN_WECHAT_APP_SECRET:}
+    ticket-ttl-minutes: ${CAMPUSRUN_WECHAT_TICKET_TTL_MINUTES:10}
+  ranking:
+    ttl-minutes: ${CAMPUSRUN_RANKING_TTL_MINUTES:30}
+  run:
+    validation:
+      min-distance-km: ${CAMPUSRUN_RUN_MIN_DISTANCE_KM:0.5}
+      min-duration-seconds: ${CAMPUSRUN_RUN_MIN_DURATION_SECONDS:300}
+      max-speed-kmh: ${CAMPUSRUN_RUN_MAX_SPEED_KMH:25}
+      min-route-points: ${CAMPUSRUN_RUN_MIN_ROUTE_POINTS:5}
+      allow-simulated-runs: ${CAMPUSRUN_RUN_ALLOW_SIMULATED_RUNS:false}
+  login:
+    rate-limit:
+      max-attempts: ${CAMPUSRUN_LOGIN_RATE_LIMIT_MAX_ATTEMPTS:12}
+      window-seconds: ${CAMPUSRUN_LOGIN_RATE_LIMIT_WINDOW_SECONDS:60}
+  students:
+    import:
+      default-status: ${CAMPUSRUN_STUDENT_IMPORT_DEFAULT_STATUS:ACTIVE}
+  bootstrap-admin:
+    enabled: ${CAMPUSRUN_BOOTSTRAP_ADMIN_ENABLED:false}
+    username: ${CAMPUSRUN_BOOTSTRAP_ADMIN_USERNAME:}
+    password: ${CAMPUSRUN_BOOTSTRAP_ADMIN_PASSWORD:}
+    display-name: ${CAMPUSRUN_BOOTSTRAP_ADMIN_DISPLAY_NAME:系统管理员}
+    college: ${CAMPUSRUN_BOOTSTRAP_ADMIN_COLLEGE:平台运营中心}

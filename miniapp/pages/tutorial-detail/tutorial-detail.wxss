@@ -1,0 +1,7 @@
+.tutorial-hero {
+  background: linear-gradient(145deg, rgba(255, 247, 236, 0.98), rgba(255, 251, 246, 0.94));
+}
+
+.content-copy {
+  line-height: 1.9;
+}

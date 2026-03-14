@@ -1,0 +1,134 @@
+.hero-spotlight {
+  background: linear-gradient(145deg, rgba(255, 248, 241, 0.98), rgba(255, 238, 224, 0.96));
+}
+
+.hero-pills {
+  margin-top: 20rpx;
+}
+
+.hero-action {
+  margin-top: 24rpx;
+}
+
+.banner-swiper {
+  height: 300rpx;
+}
+
+.banner-slide {
+  height: 100%;
+  border-radius: 26rpx;
+  padding: 28rpx;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #fffaf4;
+  position: relative;
+  overflow: hidden;
+}
+
+.banner-chip {
+  align-self: flex-start;
+  padding: 10rpx 16rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 250, 244, 0.18);
+  font-size: 22rpx;
+}
+
+.banner-arrow {
+  position: absolute;
+  top: 24rpx;
+  right: 28rpx;
+  font-size: 34rpx;
+  opacity: 0.9;
+}
+
+.banner-content {
+  margin-top: auto;
+}
+
+.banner-title {
+  font-size: 40rpx;
+  font-weight: 700;
+  margin-bottom: 10rpx;
+}
+
+.banner-subtitle {
+  font-size: 25rpx;
+  color: rgba(255, 250, 244, 0.92);
+}
+
+.section-header {
+  margin-bottom: 12rpx;
+}
+
+.section-tip,
+.section-link {
+  font-size: 24rpx;
+  color: #b95c34;
+}
+
+.clickable-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-hover {
+  transform: translateY(-4rpx);
+  box-shadow: 0 20rpx 48rpx rgba(133, 77, 36, 0.16);
+}
+
+.metric-highlight {
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-icon {
+  font-size: 34rpx;
+}
+
+.metric-foot {
+  margin-top: 12rpx;
+  color: #b95c34;
+  font-size: 22rpx;
+}
+
+.mini-eyebrow {
+  display: inline-flex;
+  padding: 8rpx 14rpx;
+  border-radius: 999rpx;
+  background: rgba(212, 75, 43, 0.10);
+  color: #d44b2b;
+  font-size: 20rpx;
+}
+
+.card-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  margin: 12rpx 0 10rpx;
+}
+
+.card-pills {
+  margin-top: 18rpx;
+}
+
+.task-row,
+.rank-row {
+  padding: 10rpx 0;
+}
+
+.rank-name {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.rank-badge {
+  color: #d44b2b;
+  font-weight: 700;
+}
+
+.activity-link,
+.tutorial-link {
+  margin-top: 16rpx;
+}

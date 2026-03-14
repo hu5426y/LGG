@@ -1,0 +1,19 @@
+.detail-hero {
+  background: linear-gradient(145deg, rgba(255, 243, 230, 0.98), rgba(255, 251, 246, 0.94));
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16rpx 0;
+  border-bottom: 2rpx solid rgba(31, 26, 24, 0.06);
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.content-copy {
+  line-height: 1.8;
+}

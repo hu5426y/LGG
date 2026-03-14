@@ -1,0 +1,9 @@
+{
+  "desc": "校园乐跑小程序 sitemap",
+  "rules": [
+    {
+      "action": "allow",
+      "page": "*"
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+<view class="page-wrap">
+  <view class="hero-card">
+    <view class="eyebrow">Run Session</view>
+    <view class="hero-title">实时跑步记录</view>
+    <view class="hero-subtitle">通过实时定位记录真实轨迹、距离和配速，重新进入页面也能恢复当前状态。</view>
+  </view>
+
+  <view wx:if="{{recoveredSession && running}}" class="panel-card recovery-card">
+    <view class="section-title">检测到上次未结束跑步</view>
+    <view class="muted">{{recoveryHint}}</view>
+    <view class="pill-row" style="margin-top: 18rpx;">
+      <view class="pill">{{paused ? '已暂停' : '进行中'}}</view>
+      <view class="pill">会话 ID：{{sessionId || '--'}}</view>
+    </view>
+  </view>
+
+  <view class="panel-card">
+    <view class="section-title">实时地图</view>
+    <map
+      wx:if="{{mapReady}}"
+      class="run-map"
+      latitude="{{mapLatitude}}"
+      longitude="{{mapLongitude}}"
+      scale="{{mapScale}}"
+      markers="{{mapMarkers}}"
+      polyline="{{mapPolyline}}"
+      include-points="{{mapIncludePoints}}"
+      show-location
+    />
+    <view wx:else class="map-placeholder">
+      <view class="section-title">等待定位</view>
+      <view class="muted">开始跑步后会在这里显示当前位置和轨迹路线。</view>
+    </view>
+    <view class="bullet-list">
+      <view class="bullet-item">GPS：{{gpsReady ? '已定位' : '等待定位'}}</view>
+      <view class="bullet-item">轨迹点：{{routePointCount}}</view>
+      <view class="bullet-item">最近定位：{{lastLocationTime || '--'}}</view>
+      <view wx:if="{{locationError}}" class="bullet-item bullet-warning">{{locationError}}</view>
+    </view>
+  </view>
+
+  <view class="metrics-grid">
+    <view class="metric-card">
+      <view class="metric-label">时长</view>
+      <view class="metric-value">{{formattedDuration}}</view>
+    </view>
+    <view class="metric-card">
+      <view class="metric-label">距离</view>
+      <view class="metric-value">{{distanceKm}} km</view>
+    </view>
+    <view class="metric-card">
+      <view class="metric-label">步数</view>
+      <view class="metric-value">{{stepCount}}</view>
+    </view>
+    <view class="metric-card">
+      <view class="metric-label">平均配速</view>
+      <view class="metric-value">{{pace}}</view>
+    </view>
+  </view>
+
+  <view class="panel-card">
+    <view class="section-title">操作区</view>
+    <view class="pill-row" style="margin-bottom: 20rpx;">
+      <view class="pill">{{running ? (paused ? '已暂停' : '进行中') : (recovering ? '恢复中' : '待开始')}}</view>
+      <view class="pill">会话 ID：{{sessionId || '--'}}</view>
+    </view>
+
+    <view class="muted helper-copy">有效跑步默认要求至少 5 分钟、0.5 公里，并成功采集足够轨迹点。</view>
+
+    <button wx:if="{{!running}}" class="accent-button" loading="{{recovering}}" disabled="{{recovering}}" bindtap="startRun">开始跑步</button>
+    <button wx:if="{{running && !paused}}" class="ghost-button" style="margin-top: 16rpx;" bindtap="pauseRun">暂停</button>
+    <button wx:if="{{running && paused}}" class="ghost-button" style="margin-top: 16rpx;" bindtap="resumeRun">继续</button>
+    <button wx:if="{{running}}" class="accent-button" style="margin-top: 16rpx;" bindtap="finishRun">结束并上传</button>
+    <button wx:if="{{running}}" class="ghost-button" style="margin-top: 16rpx;" bindtap="discardRun">放弃当前跑步</button>
+  </view>
+</view>

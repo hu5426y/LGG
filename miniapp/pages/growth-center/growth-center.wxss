@@ -1,0 +1,41 @@
+.growth-hero {
+  background: linear-gradient(145deg, rgba(255, 244, 231, 0.98), rgba(255, 251, 246, 0.94));
+}
+
+.task-card {
+  padding: 18rpx 0;
+  border-bottom: 2rpx solid rgba(31, 26, 24, 0.06);
+}
+
+.task-card:last-child {
+  border-bottom: none;
+}
+
+.task-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  margin-bottom: 8rpx;
+}
+
+.badge-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16rpx;
+}
+
+.badge-card {
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 250, 244, 0.98);
+  border: 2rpx solid rgba(212, 75, 43, 0.08);
+}
+
+.badge-icon {
+  font-size: 34rpx;
+}
+
+.badge-name {
+  margin-top: 12rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+}

@@ -1,0 +1,12 @@
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+campusrun:
+  wechat:
+    enabled: ${CAMPUSRUN_WECHAT_ENABLED:true}
+  run:
+    validation:
+      allow-simulated-runs: false

@@ -1,0 +1,53 @@
+<view class="page-wrap">
+  <view class="hero-card">
+    <view class="eyebrow">Activities</view>
+    <view class="hero-title">校园活动与训练计划</view>
+    <view class="hero-subtitle">查看报名中的活动，也可以顺手浏览训练教程。</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="panel-card">
+    <view class="section-title">加载中</view>
+    <view class="muted">正在同步活动和教程数据。</view>
+  </view>
+
+  <view wx:if="{{!loading && errorMessage}}" class="panel-card">
+    <view class="section-title">加载失败</view>
+    <view class="muted">{{errorMessage}}</view>
+    <button class="ghost-button" style="margin-top: 18rpx;" bindtap="loadData">重新加载</button>
+  </view>
+
+  <block wx:if="{{!loading && !errorMessage}}">
+    <view class="panel-card">
+      <view class="section-title">活动报名</view>
+      <block wx:if="{{activities.length}}">
+        <block wx:for="{{activities}}" wx:key="id">
+          <view class="activity-card">
+            <view class="row-between">
+              <view>
+                <view>{{item.title || '未命名活动'}}</view>
+                <view class="muted">{{item.location || '地点待定'}}</view>
+              </view>
+              <view class="pill">{{item.status || '待发布'}}</view>
+            </view>
+            <view class="muted" style="margin-top: 12rpx;">开始时间：{{item.startTime || '待安排'}}</view>
+            <button class="accent-button" style="margin-top: 18rpx;" data-id="{{item.id}}" bindtap="register">报名活动</button>
+          </view>
+        </block>
+      </block>
+      <view wx:else class="empty-state">当前没有可报名活动</view>
+    </view>
+
+    <view class="panel-card">
+      <view class="section-title">跑步教程</view>
+      <block wx:if="{{tutorials.length}}">
+        <block wx:for="{{tutorials}}" wx:key="id">
+          <view class="activity-card">
+            <view>{{item.title || '训练教程'}}</view>
+            <view class="muted" style="margin-top: 10rpx;">{{item.summary || '教程摘要暂未填写'}}</view>
+          </view>
+        </block>
+      </block>
+      <view wx:else class="empty-state">当前没有教程内容</view>
+    </view>
+  </block>
+</view>

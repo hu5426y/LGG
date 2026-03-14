@@ -1,0 +1,25 @@
+<view class="page-wrap">
+  <view wx:if="{{loading}}" class="panel-card">
+    <view class="section-title">加载中</view>
+    <view class="muted">正在获取教程详情。</view>
+  </view>
+
+  <view wx:if="{{!loading && errorMessage}}" class="panel-card">
+    <view class="section-title">加载失败</view>
+    <view class="muted">{{errorMessage}}</view>
+    <button class="ghost-button" style="margin-top: 18rpx;" bindtap="loadData">重新加载</button>
+  </view>
+
+  <block wx:if="{{!loading && !errorMessage && tutorial}}">
+    <view class="hero-card tutorial-hero">
+      <view class="eyebrow">Tutorial</view>
+      <view class="hero-title">{{tutorial.title || '训练教程'}}</view>
+      <view class="hero-subtitle">{{tutorial.summary || '这里会展示教程摘要。'}}</view>
+    </view>
+
+    <view class="panel-card">
+      <view class="section-title">教程内容</view>
+      <view class="content-copy">{{tutorial.content || '教程正文暂未提供。'}}</view>
+    </view>
+  </block>
+</view>

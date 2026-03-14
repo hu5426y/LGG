@@ -1,0 +1,24 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3307/campus_run?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
+    username: ${SPRING_DATASOURCE_USERNAME:campus}
+    password: ${SPRING_DATASOURCE_PASSWORD:campus123}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6380}
+  flyway:
+    locations: ${SPRING_FLYWAY_LOCATIONS:classpath:db/migration,classpath:db/devdata}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+campusrun:
+  jwt:
+    secret: ${CAMPUSRUN_JWT_SECRET:campus-run-dev-secret-key-campus-run-dev-secret-key}
+  run:
+    validation:
+      allow-simulated-runs: ${CAMPUSRUN_RUN_ALLOW_SIMULATED_RUNS:true}

@@ -1,0 +1,46 @@
+<view class="page-wrap login-page">
+  <view class="hero-card login-hero">
+    <view class="eyebrow login-eyebrow">Campus Run</view>
+    <view class="hero-title">校园乐跑</view>
+    <view class="hero-subtitle login-subtitle">当前版本先把账号密码主流程跑通，微信授权登录保留为正式版能力。</view>
+  </view>
+
+  <view class="panel-card">
+    <view class="section-title">账号登录</view>
+    <view class="form-box">
+      <input class="input-box" placeholder="学号 / 用户名" data-field="username" value="{{username}}" bindinput="handleInput" />
+      <input class="input-box" placeholder="密码" password data-field="password" value="{{password}}" bindinput="handleInput" />
+      <button class="accent-button" loading="{{loading}}" bindtap="handlePasswordLogin">登录进入系统</button>
+      <view class="muted">开发环境默认保留账号密码登录，便于页面联调和展示。</view>
+      <view class="env-card">
+        <view class="env-label">当前接口</view>
+        <view class="env-value">{{apiBaseUrl}}</view>
+        <view class="muted">真机调试建议改成 HTTPS 公网地址，避免手机请求无响应。</view>
+        <button class="ghost-button mini-pill" bindtap="copyApiAddress">复制接口地址</button>
+      </view>
+      <view wx:if="{{errorMessage}}" class="error-banner">{{errorMessage}}</view>
+    </view>
+  </view>
+
+  <view class="panel-card">
+    <view class="section-title">微信登录</view>
+    <view class="muted reserve-copy">正式版将接入微信授权登录和学号绑定，本轮仅保留入口占位。</view>
+    <button class="ghost-button" bindtap="handleWechatPlaceholder">查看微信登录说明</button>
+  </view>
+
+  <view class="panel-card">
+    <view class="section-title">测试账号</view>
+    <view class="pill-row">
+      <block wx:for="{{devAccounts}}" wx:key="username">
+        <button
+          class="ghost-button mini-pill"
+          data-username="{{item.username}}"
+          data-password="{{item.password}}"
+          bindtap="fillAccount"
+        >
+          {{item.label}}：{{item.username}}
+        </button>
+      </block>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,12 @@
+backend/target/
+admin-web/node_modules/
+admin-web/dist/
+.idea/
+.DS_Store
+miniapp/project.private.config.json
+miniapp/config.js
+miniapp/.cloudbase/
+miniapp/miniapp/
+.vscode/
+.env
+*.log

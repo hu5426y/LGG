@@ -1,0 +1,73 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/home/home",
+    "pages/run/run",
+    "pages/social/social",
+    "pages/activities/activities",
+    "pages/profile/profile",
+    "pages/run-result/run-result",
+    "pages/ranking/ranking",
+    "pages/growth-center/growth-center",
+    "pages/activity-detail/activity-detail",
+    "pages/tutorial-detail/tutorial-detail",
+    "pages/post-detail/post-detail"
+  ],
+  "window": {
+    "navigationBarTitleText": "\u6821\u56ed\u4e50\u8dd1",
+    "navigationBarBackgroundColor": "#f7efe5",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f7efe5",
+    "backgroundTextStyle": "light"
+  },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "\u7528\u4e8e\u8bb0\u5f55\u8dd1\u6b65\u8f68\u8ff9\u3001\u8ddd\u79bb\u548c\u914d\u901f"
+    }
+  },
+  "tabBar": {
+    "color": "#69584e",
+    "selectedColor": "#d44b2b",
+    "backgroundColor": "#fffaf4",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/home",
+        "text": "\u9996\u9875",
+        "iconPath": "assets/tabbar/home.png",
+        "selectedIconPath": "assets/tabbar/home-active.png"
+      },
+      {
+        "pagePath": "pages/run/run",
+        "text": "\u8dd1\u6b65",
+        "iconPath": "assets/tabbar/run.png",
+        "selectedIconPath": "assets/tabbar/run-active.png"
+      },
+      {
+        "pagePath": "pages/social/social",
+        "text": "\u52a8\u6001",
+        "iconPath": "assets/tabbar/social.png",
+        "selectedIconPath": "assets/tabbar/social-active.png"
+      },
+      {
+        "pagePath": "pages/activities/activities",
+        "text": "\u6d3b\u52a8",
+        "iconPath": "assets/tabbar/activity.png",
+        "selectedIconPath": "assets/tabbar/activity-active.png"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "\u6211\u7684",
+        "iconPath": "assets/tabbar/profile.png",
+        "selectedIconPath": "assets/tabbar/profile-active.png"
+      }
+    ]
+  },
+  "style": "v2",
+  "requiredPrivateInfos": [
+    "getLocation",
+    "startLocationUpdate",
+    "onLocationChange"
+  ],
+  "sitemapLocation": "sitemap.json"
+}

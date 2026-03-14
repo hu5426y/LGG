@@ -1,0 +1,76 @@
+<view class="page-wrap">
+  <view wx:if="{{loading}}" class="panel-card">
+    <view class="section-title">加载中</view>
+    <view class="muted">正在加载这次跑步的轨迹和统计数据。</view>
+  </view>
+
+  <view wx:if="{{!loading && errorMessage}}" class="panel-card">
+    <view class="section-title">加载失败</view>
+    <view class="muted">{{errorMessage}}</view>
+    <button class="ghost-button" style="margin-top: 18rpx;" bindtap="loadData">重新加载</button>
+  </view>
+
+  <block wx:if="{{!loading && !errorMessage && run}}">
+    <view class="hero-card">
+      <view class="eyebrow">Run Result</view>
+      <view class="hero-title">{{run.distanceKm || 0}} km</view>
+      <view class="hero-subtitle">完成于 {{run.displayFinishedAt}}</view>
+      <view class="pill-row" style="margin-top: 18rpx;">
+        <view class="pill">时长 {{run.displayDuration}}</view>
+        <view class="pill">配速 {{run.displayPace}}</view>
+        <view class="pill">步数 {{run.stepCount || 0}}</view>
+      </view>
+    </view>
+
+    <view class="panel-card">
+      <view class="section-title">轨迹地图</view>
+      <map
+        wx:if="{{mapReady}}"
+        class="result-map"
+        latitude="{{mapLatitude}}"
+        longitude="{{mapLongitude}}"
+        scale="{{mapScale}}"
+        markers="{{mapMarkers}}"
+        polyline="{{mapPolyline}}"
+        include-points="{{mapIncludePoints}}"
+        show-location
+      />
+      <view wx:else class="map-placeholder">
+        <view class="section-title">暂无轨迹</view>
+        <view class="muted">这次记录没有保存轨迹点，暂时无法展示地图路线。</view>
+      </view>
+      <view class="muted map-note">共记录 {{routePoints.length}} 个轨迹点，地图会自动聚焦本次跑步范围。</view>
+    </view>
+
+    <view class="metrics-grid">
+      <view class="metric-card">
+        <view class="metric-label">时长</view>
+        <view class="metric-value">{{run.displayDuration}}</view>
+      </view>
+      <view class="metric-card">
+        <view class="metric-label">平均配速</view>
+        <view class="metric-value">{{run.displayPace}}</view>
+      </view>
+      <view class="metric-card">
+        <view class="metric-label">热量</view>
+        <view class="metric-value">{{run.calories || 0}}</view>
+      </view>
+      <view class="metric-card">
+        <view class="metric-label">轨迹点</view>
+        <view class="metric-value">{{routePoints.length}}</view>
+      </view>
+    </view>
+
+    <view class="panel-card">
+      <view class="section-title">记录说明</view>
+      <view class="muted">有效跑步默认要求至少 5 分钟、0.5 公里，并成功采集足够轨迹点。</view>
+      <view class="pill-row" style="margin-top: 18rpx;">
+        <view class="pill">来源 {{run.source || '--'}}</view>
+        <view class="pill">设备 {{run.deviceModel || '--'}}</view>
+      </view>
+    </view>
+
+    <button class="accent-button" bindtap="goRunPage">再跑一次</button>
+    <button class="ghost-button" style="margin-top: 16rpx;" bindtap="goProfilePage">返回我的</button>
+  </block>
+</view>

@@ -1,0 +1,58 @@
+<view class="page-wrap">
+  <view class="hero-card growth-hero">
+    <view class="eyebrow">Growth</view>
+    <view class="hero-title">{{profile.displayName || '校园跑者'}} 的成长中心</view>
+    <view class="hero-subtitle">把任务、积分、等级和勋章集中放在一起，方便你随时查看进度。</view>
+    <view class="pill-row" style="margin-top: 20rpx;">
+      <view class="pill">积分 {{profile.points}}</view>
+      <view class="pill">Lv.{{profile.levelValue}}</view>
+      <view class="pill">累计 {{profile.totalDistanceKm}} km</view>
+    </view>
+  </view>
+
+  <view wx:if="{{loading}}" class="panel-card">
+    <view class="section-title">加载中</view>
+    <view class="muted">正在同步成长中心数据。</view>
+  </view>
+
+  <view wx:if="{{!loading && errorMessage}}" class="panel-card">
+    <view class="section-title">加载失败</view>
+    <view class="muted">{{errorMessage}}</view>
+    <button class="ghost-button" style="margin-top: 18rpx;" bindtap="loadData">重新加载</button>
+  </view>
+
+  <block wx:if="{{!loading && !errorMessage}}">
+    <view class="panel-card">
+      <view class="section-title">任务进度</view>
+      <block wx:if="{{tasks.length}}">
+        <block wx:for="{{tasks}}" wx:key="id">
+          <view class="task-card">
+            <view class="row-between">
+              <view>
+                <view class="task-title">{{item.task.title || '未命名任务'}}</view>
+                <view class="muted">{{item.currentValue || 0}} / {{item.task.goalValue || 0}}</view>
+              </view>
+              <view class="pill">{{item.completed ? '已完成' : (item.task.taskType || '进行中')}}</view>
+            </view>
+          </view>
+        </block>
+      </block>
+      <view wx:else class="empty-state">当前没有任务数据</view>
+    </view>
+
+    <view class="panel-card">
+      <view class="section-title">已获得勋章</view>
+      <block wx:if="{{badges.length}}">
+        <view class="badge-grid">
+          <block wx:for="{{badges}}" wx:key="id">
+            <view class="badge-card">
+              <view class="badge-icon">🏅</view>
+              <view class="badge-name">{{item.name || '未命名勋章'}}</view>
+            </view>
+          </block>
+        </view>
+      </block>
+      <view wx:else class="empty-state">完成更多跑步任务后，勋章会在这里点亮。</view>
+    </view>
+  </block>
+</view>

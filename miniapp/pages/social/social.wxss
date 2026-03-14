@@ -1,0 +1,15 @@
+textarea {
+  width: 100%;
+}
+
+.content-block {
+  line-height: 1.8;
+}
+
+.comment-row {
+  margin-bottom: 14rpx;
+}
+
+.comment-author {
+  font-weight: 700;
+}

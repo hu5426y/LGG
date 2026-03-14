@@ -1,0 +1,59 @@
+<view class="page-wrap">
+  <view class="panel-card">
+    <view class="section-title">发布动态</view>
+    <view class="form-box">
+      <textarea class="textarea-box" placeholder="记录今天的跑步瞬间、配速突破或组队邀请" value="{{content}}" bindinput="handleInput"></textarea>
+      <button class="accent-button" loading="{{publishing}}" bindtap="publishPost">发布动态</button>
+    </view>
+  </view>
+
+  <view wx:if="{{loading}}" class="panel-card">
+    <view class="section-title">加载中</view>
+    <view class="muted">正在同步校园动态。</view>
+  </view>
+
+  <view wx:if="{{!loading && errorMessage}}" class="panel-card">
+    <view class="section-title">加载失败</view>
+    <view class="muted">{{errorMessage}}</view>
+    <button class="ghost-button" style="margin-top: 18rpx;" bindtap="loadPosts">重新加载</button>
+  </view>
+
+  <view wx:if="{{!loading && !errorMessage && !posts.length}}" class="panel-card">
+    <view class="section-title">还没有动态</view>
+    <view class="muted">发布第一条校园跑步分享，让更多同学看到你的状态。</view>
+  </view>
+
+  <block wx:for="{{posts}}" wx:key="id">
+    <view class="post-card">
+      <view class="post-header">
+        <view>
+          <view>{{item.user.displayName || '校园跑友'}}</view>
+          <view class="muted">{{item.createdAt || '刚刚更新'}}</view>
+        </view>
+        <view class="pill">{{item.featured ? '推荐' : (item.reviewStatus || '已发布')}}</view>
+      </view>
+      <view class="divider"></view>
+      <view class="content-block">{{item.content || '这条动态暂时没有内容'}}</view>
+      <view class="pill-row" style="margin-top: 20rpx;">
+        <view class="pill">点赞 {{item.likeCount || 0}}</view>
+        <view class="pill">评论 {{item.commentCount || 0}}</view>
+      </view>
+      <view class="pill-row" style="margin-top: 20rpx;">
+        <button size="mini" class="ghost-button" data-id="{{item.id}}" bindtap="likePost">点赞</button>
+        <button size="mini" class="ghost-button" data-id="{{item.id}}" bindtap="loadComments">查看评论</button>
+        <button size="mini" class="ghost-button" data-id="{{item.id}}" bindtap="commentPost">评论</button>
+        <button size="mini" class="ghost-button" data-id="{{item.id}}" bindtap="reportPost">举报</button>
+      </view>
+
+      <block wx:if="{{commentsMap[item.id] && commentsMap[item.id].length}}">
+        <view class="divider"></view>
+        <block wx:for="{{commentsMap[item.id]}}" wx:key="id" wx:for-item="comment">
+          <view class="comment-row">
+            <text class="comment-author">{{comment.user.displayName || '同学'}}：</text>
+            <text>{{comment.content || '暂无评论内容'}}</text>
+          </view>
+        </block>
+      </block>
+    </view>
+  </block>
+</view>
