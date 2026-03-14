@@ -11,3 +11,4 @@ backend/container.config.json
 .vscode/
 .env
 *.log
+scripts/.runtime/
