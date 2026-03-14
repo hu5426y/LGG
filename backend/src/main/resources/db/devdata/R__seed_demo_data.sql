@@ -115,3 +115,47 @@ INSERT INTO audit_log (id, created_at, updated_at, operator_id, action, target_t
 VALUES
     (1, NOW(), NOW(), 1, 'SEED_DATA', 'system', 'init', '初始化演示数据完成')
 ON DUPLICATE KEY UPDATE updated_at = VALUES(updated_at);
+
+INSERT INTO badge (id, created_at, updated_at, code, name, description, icon, rule_type, rule_threshold, active)
+VALUES
+    (4, NOW(), NOW(), 'CHECKIN_7', '7 Day Streak', 'Complete 7 consecutive daily check-ins.', 'medal-checkin-7', 'CHECKIN_STREAK', 7, b'1'),
+    (5, NOW(), NOW(), 'PLAN_1', 'Plan Finisher', 'Finish your first running plan.', 'medal-plan-1', 'PLAN_COMPLETION', 1, b'1'),
+    (6, NOW(), NOW(), 'SQUAD_1', 'Squad Ready', 'Join a running squad and stay active.', 'medal-squad-1', 'SQUAD_PARTICIPATION', 1, b'1')
+ON DUPLICATE KEY UPDATE updated_at = VALUES(updated_at);
+
+UPDATE club SET member_count = 2 WHERE id = 1;
+UPDATE club SET member_count = 1 WHERE id = 2;
+
+INSERT INTO club_member (id, created_at, updated_at, club_id, user_id, role, active, joined_at)
+VALUES
+    (1, NOW(), NOW(), 1, 2, 'OWNER', b'1', NOW()),
+    (2, NOW(), NOW(), 1, 4, 'MEMBER', b'1', NOW()),
+    (3, NOW(), NOW(), 2, 3, 'OWNER', b'1', NOW())
+ON DUPLICATE KEY UPDATE updated_at = VALUES(updated_at), active = VALUES(active);
+
+INSERT INTO user_run_plan (id, created_at, updated_at, user_id, template_id, status, started_on, completed_on, current_day_index)
+VALUES
+    (1, NOW(), NOW(), 2, 1, 'ACTIVE', CURDATE(), NULL, 2),
+    (2, NOW(), NOW(), 3, 2, 'COMPLETED', DATE_SUB(CURDATE(), INTERVAL 7 DAY), CURDATE(), 8)
+ON DUPLICATE KEY UPDATE updated_at = VALUES(updated_at), status = VALUES(status), current_day_index = VALUES(current_day_index), completed_on = VALUES(completed_on);
+
+INSERT INTO user_run_plan_day (id, created_at, updated_at, user_run_plan_id, day_index, title, description, target_distance_km, target_duration_minutes, completed, completed_on, source_run_id)
+VALUES
+    (1, NOW(), NOW(), 1, 1, 'Day 1 Training', 'Warm-up jog and easy finish.', 1.4, 20, b'1', CURDATE(), 1),
+    (2, NOW(), NOW(), 1, 2, 'Day 2 Training', 'Steady aerobic run.', 1.8, 24, b'0', NULL, NULL),
+    (3, NOW(), NOW(), 2, 1, 'Day 1 Training', 'Fat-burn run.', 2.5, 25, b'1', DATE_SUB(CURDATE(), INTERVAL 6 DAY), 2),
+    (4, NOW(), NOW(), 2, 2, 'Day 2 Training', 'Fat-burn run.', 2.8, 26, b'1', DATE_SUB(CURDATE(), INTERVAL 5 DAY), 2)
+ON DUPLICATE KEY UPDATE updated_at = VALUES(updated_at), completed = VALUES(completed), completed_on = VALUES(completed_on), source_run_id = VALUES(source_run_id);
+
+INSERT INTO daily_checkin (id, created_at, updated_at, user_id, checkin_date, source_run_id, plan_day_id, streak_days)
+VALUES
+    (1, NOW(), NOW(), 2, DATE_SUB(CURDATE(), INTERVAL 1 DAY), 1, 1, 1),
+    (2, NOW(), NOW(), 2, CURDATE(), 1, 2, 2),
+    (3, NOW(), NOW(), 3, CURDATE(), 2, NULL, 1)
+ON DUPLICATE KEY UPDATE updated_at = VALUES(updated_at), streak_days = VALUES(streak_days), plan_day_id = VALUES(plan_day_id);
+
+INSERT INTO run_daily_stats (id, created_at, updated_at, stat_date, active_users, total_distance_km, total_duration_seconds, average_pace_seconds, completed_plans, checkin_users, active_squads, squad_message_count)
+VALUES
+    (1, NOW(), NOW(), DATE_SUB(CURDATE(), INTERVAL 1 DAY), 2, 10.2, 3600, 353, 0, 1, 1, 1),
+    (2, NOW(), NOW(), CURDATE(), 2, 6.3, 2200, 349, 1, 2, 2, 3)
+ON DUPLICATE KEY UPDATE updated_at = VALUES(updated_at), active_users = VALUES(active_users), total_distance_km = VALUES(total_distance_km), total_duration_seconds = VALUES(total_duration_seconds), average_pace_seconds = VALUES(average_pace_seconds), completed_plans = VALUES(completed_plans), checkin_users = VALUES(checkin_users), active_squads = VALUES(active_squads), squad_message_count = VALUES(squad_message_count);

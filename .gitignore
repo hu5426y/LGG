@@ -7,6 +7,7 @@ miniapp/project.private.config.json
 miniapp/config.js
 miniapp/.cloudbase/
 miniapp/miniapp/
+backend/container.config.json
 .vscode/
 .env
 *.log

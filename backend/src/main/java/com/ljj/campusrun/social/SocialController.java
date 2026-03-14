@@ -60,8 +60,8 @@ public class SocialController {
     }
 
     @GetMapping("/clubs/{clubId}/messages")
-    public ApiResponse<Object> clubMessages(@PathVariable Long clubId) {
-        return ApiResponse.ok(socialService.listClubMessages(clubId));
+    public ApiResponse<Object> clubMessages(@AuthenticationPrincipal AppUserPrincipal principal, @PathVariable Long clubId) {
+        return ApiResponse.ok(socialService.listClubMessages(principal.user().getId(), clubId));
     }
 
     @PostMapping("/clubs/{clubId}/messages")
@@ -69,5 +69,20 @@ public class SocialController {
                                                @PathVariable Long clubId,
                                                @Valid @RequestBody CreateClubMessageRequest request) {
         return ApiResponse.ok("消息已发送", socialService.sendClubMessage(principal.user().getId(), clubId, request));
+    }
+
+    @PostMapping("/clubs/{clubId}/join")
+    public ApiResponse<Object> joinClub(@AuthenticationPrincipal AppUserPrincipal principal, @PathVariable Long clubId) {
+        return ApiResponse.ok("已加入跑步小队", socialService.joinClub(principal.user().getId(), clubId));
+    }
+
+    @PostMapping("/clubs/{clubId}/leave")
+    public ApiResponse<Object> leaveClub(@AuthenticationPrincipal AppUserPrincipal principal, @PathVariable Long clubId) {
+        return ApiResponse.ok("已退出跑步小队", socialService.leaveClub(principal.user().getId(), clubId));
+    }
+
+    @GetMapping("/clubs/{clubId}/members")
+    public ApiResponse<Object> clubMembers(@AuthenticationPrincipal AppUserPrincipal principal, @PathVariable Long clubId) {
+        return ApiResponse.ok(socialService.listClubMembers(principal.user().getId(), clubId));
     }
 }

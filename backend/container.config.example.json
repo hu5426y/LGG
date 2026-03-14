@@ -1,0 +1,22 @@
+{
+  "containerPort": 8080,
+  "dockerfilePath": "Dockerfile",
+  "buildDir": "",
+  "cpu": 1,
+  "mem": 2,
+  "minNum": 0,
+  "maxNum": 2,
+  "policyType": "cpu",
+  "policyThreshold": 80,
+  "envParams": {
+    "SPRING_PROFILES_ACTIVE": "dev",
+    "SPRING_DATASOURCE_URL": "jdbc:mysql://replace-me:3306/campus_run?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai",
+    "SPRING_DATASOURCE_USERNAME": "replace-me",
+    "SPRING_DATASOURCE_PASSWORD": "replace-me",
+    "SPRING_DATA_REDIS_HOST": "replace-me",
+    "SPRING_DATA_REDIS_PORT": "6379",
+    "CAMPUSRUN_JWT_SECRET": "replace-me-with-a-long-random-string",
+    "CAMPUSRUN_SWAGGER_ENABLED": "true",
+    "CAMPUSRUN_RUN_ALLOW_SIMULATED_RUNS": "true"
+  }
+}

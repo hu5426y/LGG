@@ -10,12 +10,13 @@ const session = useSessionStore()
 const isLoginPage = computed(() => route.path === '/login')
 
 const navItems = [
-  { path: '/dashboard', label: '总览' },
-  { path: '/students', label: '学生管理' },
-  { path: '/moderation', label: '内容审核' },
-  { path: '/activities', label: '活动教程' },
-  { path: '/rewards', label: '勋章等级' },
-  { path: '/logs', label: '审计日志' }
+  { path: '/dashboard', label: 'Overview' },
+  { path: '/metrics', label: 'Metrics' },
+  { path: '/students', label: 'Students' },
+  { path: '/moderation', label: 'Moderation' },
+  { path: '/activities', label: 'Activities' },
+  { path: '/rewards', label: 'Rewards' },
+  { path: '/logs', label: 'Audit Logs' }
 ]
 
 function logout() {
@@ -32,8 +33,8 @@ function logout() {
     <aside class="sidebar">
       <div class="brand">
         <span class="brand-kicker">Campus Run</span>
-        <h1>校园乐跑后台</h1>
-        <p>运营、审核与活动管理一体化控制台</p>
+        <h1>Campus Run Console</h1>
+        <p>Operations, moderation, activity management, and running analytics in one place.</p>
       </div>
 
       <nav class="nav-list">
@@ -44,10 +45,10 @@ function logout() {
 
       <div class="sidebar-footer">
         <div class="user-card">
-          <strong>{{ session.user?.displayName || '管理员' }}</strong>
+          <strong>{{ session.user?.displayName || 'Admin' }}</strong>
           <span>{{ session.user?.username }}</span>
         </div>
-        <button class="ghost-button" @click="logout">退出登录</button>
+        <button class="ghost-button" @click="logout">Sign Out</button>
       </div>
     </aside>
 
@@ -55,9 +56,9 @@ function logout() {
       <header class="page-header">
         <div>
           <span class="page-tag">Operations Console</span>
-          <h2>{{ route.meta?.title || '校园乐跑运营后台' }}</h2>
+          <h2>{{ route.meta?.title || 'Campus Run Console' }}</h2>
         </div>
-        <div class="header-pill">生产准备中</div>
+        <div class="header-pill">Metrics Enabled</div>
       </header>
       <router-view />
     </main>

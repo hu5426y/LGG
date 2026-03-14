@@ -30,6 +30,7 @@ class AdminServiceTest {
         ActivityService activityService = mock(ActivityService.class);
         AuditLogService auditLogService = mock(AuditLogService.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        AdminMetricsService adminMetricsService = mock(AdminMetricsService.class);
         AdminService adminService = new AdminService(
                 userRepository,
                 feedPostRepository,
@@ -37,7 +38,8 @@ class AdminServiceTest {
                 auditLogRepository,
                 activityService,
                 auditLogService,
-                passwordEncoder
+                passwordEncoder,
+                adminMetricsService
         );
 
         User student = new User();

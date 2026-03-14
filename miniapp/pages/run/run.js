@@ -7,6 +7,8 @@ const {
   buildMapState,
   formatLocationTimeFromPoints
 } = require('../../utils/run-map')
+const { createRunSession, appendRunPoints, finalizeRunSession } = require('../../utils/cloud-run')
+const { ROUTES, PACES, buildSimulatedRoute } = require('../../utils/run-simulator')
 
 function haversineMeters(pointA, pointB) {
   const toRad = (value) => value * Math.PI / 180
@@ -39,9 +41,48 @@ function createRoutePointFromLocation(location) {
   })
 }
 
+function createSensorSummary() {
+  return {
+    sampleCount: 0,
+    activeSampleCount: 0,
+    totalMagnitude: 0,
+    maxMagnitude: 0
+  }
+}
+
+function getSimulationEnabled() {
+  const app = getApp()
+  return Boolean(app?.globalData?.simulationEnabled)
+}
+
+function getMapSubKey() {
+  const app = getApp()
+  return app?.globalData?.mapSubKey || ''
+}
+
+function getModeFromSource(source) {
+  return typeof source === 'string' && source.includes('simulated') ? 'SIMULATED' : 'REAL'
+}
+
+function summarizeSensorState(sensorState) {
+  const sampleCount = sensorState.sampleCount || 0
+  const activeSampleCount = sensorState.activeSampleCount || 0
+  const averageMagnitude = sampleCount ? sensorState.totalMagnitude / sampleCount : 0
+  const motionConfidence = sampleCount ? activeSampleCount / sampleCount : 0
+  return {
+    sampleCount,
+    activeSampleCount,
+    averageMagnitude: Number(averageMagnitude.toFixed(3)),
+    maxMagnitude: Number((sensorState.maxMagnitude || 0).toFixed(3)),
+    motionConfidence: Number(motionConfidence.toFixed(2))
+  }
+}
+
 function getDefaultState() {
   return {
     sessionId: null,
+    cloudSessionId: '',
+    runMode: 'REAL',
     running: false,
     paused: false,
     recovering: false,
@@ -50,17 +91,26 @@ function getDefaultState() {
     durationSeconds: 0,
     formattedDuration: '00:00:00',
     distanceKm: 0,
-    stepCount: 0,
+    estimatedStepCount: 0,
+    calories: 0,
     pace: '--',
     gpsReady: false,
     routePointCount: 0,
     lastLocationTime: '--',
     locationError: '',
+    cloudStatus: '本地缓存中',
+    motionConfidence: 0,
+    motionLabel: '待采集',
+    sensorSampleCount: 0,
     routePoints: [],
     currentPosition: null,
     startedAtMs: null,
     pausedDurationMs: 0,
     pausedStartedAtMs: null,
+    simulationEnabled: getSimulationEnabled(),
+    mapSubKey: getMapSubKey(),
+    simulationName: '',
+    simulationCompleted: false,
     ...buildMapState([], null)
   }
 }
@@ -70,6 +120,12 @@ Page({
 
   onLoad() {
     this.locationListener = this.handleLocationChange.bind(this)
+    this.accelerometerListener = this.handleAccelerometerChange.bind(this)
+    this.sensorState = createSensorSummary()
+    this.pendingCloudPoints = []
+    this.cloudBatchIndex = 0
+    this.lastCloudFlushAt = 0
+    this.simulationQueue = []
   },
 
   async onShow() {
@@ -82,6 +138,8 @@ Page({
   onUnload() {
     this.stopTicker()
     this.stopLocationTracking()
+    this.stopMotionTracking()
+    this.stopSimulationPlayback()
   },
 
   onHide() {
@@ -93,6 +151,8 @@ Page({
     const routePoints = normalizeRoutePoints(this.data.routePoints)
     wx.setStorageSync('campusRunCurrentRun', {
       sessionId: this.data.sessionId,
+      cloudSessionId: this.data.cloudSessionId,
+      runMode: this.data.runMode,
       running: this.data.running,
       paused: this.data.paused,
       recoveredSession: this.data.recoveredSession,
@@ -100,24 +160,32 @@ Page({
       durationSeconds: this.data.durationSeconds,
       formattedDuration: this.data.formattedDuration,
       distanceKm: Number(this.data.distanceKm.toFixed(3)),
-      stepCount: this.data.stepCount,
+      estimatedStepCount: this.data.estimatedStepCount,
+      calories: this.data.calories,
       pace: this.data.pace,
       gpsReady: this.data.gpsReady,
       routePointCount: routePoints.length,
       lastLocationTime: this.data.lastLocationTime,
       locationError: this.data.locationError,
+      cloudStatus: this.data.cloudStatus,
+      motionConfidence: this.data.motionConfidence,
+      motionLabel: this.data.motionLabel,
+      sensorSampleCount: this.data.sensorSampleCount,
       routePoints,
       currentPosition: this.data.currentPosition,
       startedAtMs: this.data.startedAtMs,
       pausedDurationMs: this.data.pausedDurationMs,
-      pausedStartedAtMs: this.data.pausedStartedAtMs
+      pausedStartedAtMs: this.data.pausedStartedAtMs,
+      simulationName: this.data.simulationName,
+      simulationCompleted: this.data.simulationCompleted
     })
   },
 
   async restoreRunState() {
     this.setData({
       recovering: true,
-      locationError: ''
+      locationError: '',
+      simulationEnabled: getSimulationEnabled()
     })
 
     const saved = wx.getStorageSync('campusRunCurrentRun')
@@ -126,7 +194,10 @@ Page({
       this.setData({ recovering: false })
       if (saved.running && !saved.paused) {
         this.startTicker()
-        await this.startLocationTracking().catch(() => {})
+        if (saved.runMode === 'REAL') {
+          await this.startLocationTracking().catch(() => {})
+          await this.startMotionTracking().catch(() => {})
+        }
       }
       return
     }
@@ -156,6 +227,8 @@ Page({
     const distanceKm = Number(saved.distanceKm || 0)
     this.setData({
       sessionId: saved.sessionId,
+      cloudSessionId: saved.cloudSessionId || '',
+      runMode: saved.runMode || 'REAL',
       running,
       paused: Boolean(saved.paused),
       recoveredSession: running,
@@ -163,23 +236,38 @@ Page({
       durationSeconds,
       formattedDuration: saved.formattedDuration || formatDuration(durationSeconds),
       distanceKm,
-      stepCount: Number(saved.stepCount || 0),
+      estimatedStepCount: Number(saved.estimatedStepCount || 0),
+      calories: Number(saved.calories || 0),
       pace: saved.pace || formatPace(distanceKm, durationSeconds),
       gpsReady: Boolean(saved.gpsReady || routePoints.length || currentPosition),
       routePointCount: routePoints.length,
       lastLocationTime: routePoints.length ? formatLocationTimeFromPoints(routePoints) : '--',
       locationError: saved.locationError || '',
+      cloudStatus: saved.cloudStatus || '本地缓存中',
+      motionConfidence: Number(saved.motionConfidence || 0),
+      motionLabel: saved.motionLabel || '待采集',
+      sensorSampleCount: Number(saved.sensorSampleCount || 0),
       routePoints,
       currentPosition,
       startedAtMs: saved.startedAtMs || null,
       pausedDurationMs: Number(saved.pausedDurationMs || 0),
       pausedStartedAtMs: saved.pausedStartedAtMs || null,
+      simulationEnabled: getSimulationEnabled(),
+      mapSubKey: getMapSubKey(),
+      simulationName: saved.simulationName || '',
+      simulationCompleted: Boolean(saved.simulationCompleted),
       ...buildMapState(routePoints, currentPosition)
     })
     this.persistState()
   },
 
   computeDurationSeconds(now = Date.now()) {
+    if (this.data.runMode === 'SIMULATED') {
+      const routePoints = normalizeRoutePoints(this.data.routePoints)
+      if (routePoints.length > 1) {
+        return Math.max(0, Math.floor((routePoints[routePoints.length - 1].timestamp - routePoints[0].timestamp) / 1000))
+      }
+    }
     if (!this.data.startedAtMs) {
       return 0
     }
@@ -191,11 +279,13 @@ Page({
 
   updateDerivedMetrics() {
     const durationSeconds = this.computeDurationSeconds()
+    const calories = Math.round(this.data.distanceKm * 60)
     this.setData({
       durationSeconds,
       formattedDuration: formatDuration(durationSeconds),
       pace: formatPace(this.data.distanceKm, durationSeconds),
-      stepCount: Math.max(this.data.stepCount, Math.round(this.data.distanceKm * 1350))
+      calories,
+      estimatedStepCount: Math.max(this.data.estimatedStepCount, Math.round(this.data.distanceKm * 1350))
     })
     this.persistState()
   },
@@ -264,12 +354,12 @@ Page({
         ...buildMapState(this.data.routePoints, currentPosition)
       })
     } catch (error) {
-      // Ignore preview failures when the page is only trying to render the current map state.
+      // ignore
     }
   },
 
   async startLocationTracking() {
-    if (this.locationTracking) {
+    if (this.data.runMode !== 'REAL' || this.locationTracking) {
       return
     }
     await new Promise((resolve, reject) => {
@@ -302,14 +392,146 @@ Page({
     this.locationTracking = false
   },
 
+  async startMotionTracking() {
+    if (this.motionTracking || typeof wx.startAccelerometer !== 'function') {
+      return
+    }
+    await new Promise((resolve, reject) => {
+      wx.startAccelerometer({
+        interval: 'game',
+        success: resolve,
+        fail: reject
+      })
+    }).catch(() => null)
+    if (typeof wx.offAccelerometerChange === 'function') {
+      wx.offAccelerometerChange(this.accelerometerListener)
+    }
+    if (typeof wx.onAccelerometerChange === 'function') {
+      wx.onAccelerometerChange(this.accelerometerListener)
+      this.motionTracking = true
+    }
+  },
+
+  stopMotionTracking() {
+    if (!this.motionTracking) {
+      return
+    }
+    if (typeof wx.offAccelerometerChange === 'function') {
+      wx.offAccelerometerChange(this.accelerometerListener)
+    }
+    if (typeof wx.stopAccelerometer === 'function') {
+      wx.stopAccelerometer({})
+    }
+    this.motionTracking = false
+  },
+
+  handleAccelerometerChange(event) {
+    if (!this.data.running || this.data.paused) {
+      return
+    }
+    const magnitude = Math.sqrt((event.x || 0) ** 2 + (event.y || 0) ** 2 + (event.z || 0) ** 2)
+    this.sensorState.sampleCount += 1
+    this.sensorState.totalMagnitude += magnitude
+    this.sensorState.maxMagnitude = Math.max(this.sensorState.maxMagnitude, magnitude)
+    if (magnitude >= 1.05) {
+      this.sensorState.activeSampleCount += 1
+    }
+    const summary = summarizeSensorState(this.sensorState)
+    this.setData({
+      motionConfidence: summary.motionConfidence,
+      motionLabel: summary.motionConfidence >= 0.6 ? '运动稳定' : (summary.motionConfidence >= 0.3 ? '轻度波动' : '采集偏弱'),
+      sensorSampleCount: summary.sampleCount
+    })
+  },
+
+  async createCloudSession(mode, firstPoint) {
+    try {
+      const cloudSessionId = await createRunSession({
+        runId: this.data.sessionId,
+        mode,
+        firstPoint,
+        device: wx.getDeviceInfo ? wx.getDeviceInfo() : {},
+        mapSubKey: getApp().globalData.mapSubKey || ''
+      })
+      this.setData({
+        cloudSessionId,
+        cloudStatus: cloudSessionId ? '云端会话已创建' : '本地缓存中'
+      })
+    } catch (error) {
+      this.setData({
+        cloudStatus: '云端不可用，已降级本地缓存'
+      })
+    }
+  },
+
+  queueCloudPoint(point) {
+    if (!point) {
+      return
+    }
+    this.pendingCloudPoints.push(point)
+    this.flushCloudPoints()
+  },
+
+  async flushCloudPoints(force = false) {
+    if (!this.pendingCloudPoints.length) {
+      return
+    }
+    const now = Date.now()
+    const dueByCount = this.pendingCloudPoints.length >= 10
+    const dueByTime = now - this.lastCloudFlushAt >= 15000
+    if (!force && !dueByCount && !dueByTime) {
+      return
+    }
+    const currentBatch = this.pendingCloudPoints.splice(0, this.pendingCloudPoints.length)
+    try {
+      await appendRunPoints(this.data.cloudSessionId, this.cloudBatchIndex, currentBatch)
+      this.cloudBatchIndex += 1
+      this.lastCloudFlushAt = now
+      this.setData({
+        cloudStatus: this.data.cloudSessionId ? '已同步轨迹到云端' : '已写入本地缓存'
+      })
+    } catch (error) {
+      this.pendingCloudPoints = currentBatch.concat(this.pendingCloudPoints)
+      this.setData({
+        cloudStatus: '云同步失败，稍后重试'
+      })
+    }
+  },
+
+  async finalizeCloudSession(status) {
+    await this.flushCloudPoints(true)
+    const summary = summarizeSensorState(this.sensorState)
+    try {
+      await finalizeRunSession(this.data.cloudSessionId, {
+        status,
+        distanceKm: Number(this.data.distanceKm.toFixed(3)),
+        durationSeconds: this.computeDurationSeconds(),
+        estimatedStepCount: this.data.estimatedStepCount,
+        routePointCount: this.data.routePointCount,
+        motionConfidence: summary.motionConfidence,
+        sensorSummary: summary
+      })
+      this.setData({
+        cloudStatus: status === 'FINISHED' ? '云端会话已完成' : '云端会话已更新'
+      })
+    } catch (error) {
+      this.setData({
+        cloudStatus: '云端总结写入失败'
+      })
+    }
+  },
+
   applyRecoveredRun(run) {
     const routePoints = normalizeRoutePoints(run.routePoints)
     const paused = run.state === 'PAUSED'
     const distanceKm = Number(run.distanceKm || 0)
     const durationSeconds = Number(run.durationSeconds || 0)
     const currentPosition = routePoints[routePoints.length - 1] || null
+    const runMode = getModeFromSource(run.source)
     this.setData({
       sessionId: run.id,
+      cloudSessionId: run.cloudSessionId || '',
+      runMode,
       running: run.state === 'RUNNING' || run.state === 'PAUSED',
       paused,
       recovering: false,
@@ -318,17 +540,26 @@ Page({
       durationSeconds,
       formattedDuration: formatDuration(durationSeconds),
       distanceKm,
-      stepCount: Number(run.stepCount || 0),
+      estimatedStepCount: Number(run.estimatedStepCount || 0),
+      calories: Number(run.calories || 0),
       pace: formatPace(distanceKm, durationSeconds),
       gpsReady: Boolean(routePoints.length || currentPosition),
       routePointCount: routePoints.length,
       lastLocationTime: routePoints.length ? formatLocationTimeFromPoints(routePoints) : '--',
       locationError: '',
+      cloudStatus: run.cloudSessionId ? '已恢复云端会话' : '恢复到本地缓存',
+      motionConfidence: Number(run.motionConfidence || 0),
+      motionLabel: Number(run.motionConfidence || 0) > 0.6 ? '运动稳定' : '采集中',
+      sensorSampleCount: 0,
       routePoints,
       currentPosition,
       startedAtMs: parseServerTime(run.startedAt),
       pausedDurationMs: 0,
       pausedStartedAtMs: paused ? parseServerTime(run.pausedAt) : null,
+      simulationEnabled: getSimulationEnabled(),
+      mapSubKey: getMapSubKey(),
+      simulationName: runMode === 'SIMULATED' ? '模拟路线' : '',
+      simulationCompleted: false,
       ...buildMapState(routePoints, currentPosition)
     })
     this.persistState()
@@ -342,7 +573,10 @@ Page({
     this.applyRecoveredRun(current)
     if (current.state === 'RUNNING') {
       this.startTicker()
-      await this.startLocationTracking().catch(() => {})
+      if (this.data.runMode === 'REAL') {
+        await this.startLocationTracking().catch(() => {})
+        await this.startMotionTracking().catch(() => {})
+      }
     }
     await this.refreshLocationPreviewSilently()
     if (showToast) {
@@ -354,15 +588,9 @@ Page({
     return true
   },
 
-  handleLocationChange(location) {
-    if (!this.data.running || this.data.paused) {
-      return
-    }
-
-    const point = createRoutePointFromLocation(location)
+  appendRoutePoint(point) {
     const routePoints = normalizeRoutePoints(this.data.routePoints).slice()
     const previousPoint = routePoints[routePoints.length - 1]
-
     if (previousPoint) {
       const deltaDistance = haversineMeters(previousPoint, point)
       const deltaMillis = point.timestamp - previousPoint.timestamp
@@ -375,7 +603,6 @@ Page({
         })
         return
       }
-
       routePoints.push(point)
       this.setData({
         routePoints,
@@ -397,12 +624,19 @@ Page({
         ...buildMapState(routePoints, point)
       })
     }
-
+    this.queueCloudPoint(point)
     this.updateDerivedMetrics()
   },
 
-  seedRouteWithLocation(location) {
+  handleLocationChange(location) {
+    if (!this.data.running || this.data.paused || this.data.runMode !== 'REAL') {
+      return
+    }
     const point = createRoutePointFromLocation(location)
+    this.appendRoutePoint(point)
+  },
+
+  seedRouteWithPoint(point) {
     const routePoints = point ? [point] : []
     this.setData({
       routePoints,
@@ -412,6 +646,169 @@ Page({
       lastLocationTime: point ? new Date(point.timestamp).toLocaleTimeString('zh-CN', { hour12: false }) : '--',
       ...buildMapState(routePoints, point)
     })
+    if (point) {
+      this.queueCloudPoint(point)
+    }
+  },
+
+  async chooseStartMode() {
+    if (!this.data.simulationEnabled) {
+      return { mode: 'REAL' }
+    }
+    const result = await new Promise((resolve) => {
+      wx.showActionSheet({
+        itemList: ['真实跑步', '模拟跑步'],
+        success: (res) => resolve(res.tapIndex === 1 ? { mode: 'SIMULATED' } : { mode: 'REAL' }),
+        fail: () => resolve({ mode: 'REAL' })
+      })
+    })
+    if (result.mode !== 'SIMULATED') {
+      return result
+    }
+    const routeChoice = await new Promise((resolve) => {
+      wx.showActionSheet({
+        itemList: ROUTES.map((item) => item.name),
+        success: (res) => resolve(ROUTES[res.tapIndex] || ROUTES[0]),
+        fail: () => resolve(ROUTES[0])
+      })
+    })
+    const paceChoice = await new Promise((resolve) => {
+      wx.showActionSheet({
+        itemList: PACES.map((item) => item.label),
+        success: (res) => resolve(PACES[res.tapIndex] || PACES[0]),
+        fail: () => resolve(PACES[0])
+      })
+    })
+    return {
+      mode: 'SIMULATED',
+      routeId: routeChoice.id,
+      paceId: paceChoice.id,
+      simulationName: `${routeChoice.name} · ${paceChoice.label}`
+    }
+  },
+
+  async startRun() {
+    if (this.data.recovering) {
+      return
+    }
+
+    try {
+      const choice = await this.chooseStartMode()
+      if (choice.mode === 'SIMULATED') {
+        return this.startSimulatedRun(choice)
+      }
+      return this.startRealRun()
+    } catch (error) {
+      this.setData({
+        locationError: error.message
+      })
+      wx.showToast({ title: error.message, icon: 'none' })
+    }
+  },
+
+  async startRealRun() {
+    const location = await this.ensureLocationReady()
+    const systemInfo = wx.getSystemInfoSync()
+    const result = await request.post('/runs/start', {
+      source: 'wechat-miniapp',
+      deviceModel: systemInfo.model || '',
+      devicePlatform: systemInfo.platform || '',
+      clientVersion: systemInfo.version || '',
+      mode: 'REAL',
+      simulated: false
+    })
+    this.sensorState = createSensorSummary()
+    this.pendingCloudPoints = []
+    this.cloudBatchIndex = 0
+    this.lastCloudFlushAt = 0
+    const firstPoint = createRoutePointFromLocation(location)
+    this.setData({
+      ...getDefaultState(),
+      sessionId: result.id,
+      runMode: 'REAL',
+      running: true,
+      startedAtMs: Date.now(),
+      simulationEnabled: getSimulationEnabled()
+      ,mapSubKey: getMapSubKey()
+    })
+    this.seedRouteWithPoint(firstPoint)
+    await this.createCloudSession('REAL', firstPoint)
+    this.persistState()
+    await this.startLocationTracking()
+    await this.startMotionTracking()
+    this.startTicker()
+    wx.showToast({ title: '开始跑步', icon: 'success' })
+  },
+
+  async startSimulatedRun(choice) {
+    const systemInfo = wx.getSystemInfoSync()
+    const result = await request.post('/runs/start', {
+      source: 'wechat-miniapp',
+      deviceModel: systemInfo.model || '',
+      devicePlatform: systemInfo.platform || '',
+      clientVersion: systemInfo.version || '',
+      mode: 'SIMULATED',
+      simulated: true
+    })
+    this.sensorState = createSensorSummary()
+    this.pendingCloudPoints = []
+    this.cloudBatchIndex = 0
+    this.lastCloudFlushAt = 0
+    const simulated = buildSimulatedRoute(choice.routeId, choice.paceId)
+    const [firstPoint, ...rest] = simulated.points
+    this.simulationQueue = rest
+    this.setData({
+      ...getDefaultState(),
+      sessionId: result.id,
+      runMode: 'SIMULATED',
+      running: true,
+      startedAtMs: firstPoint.timestamp,
+      simulationName: choice.simulationName || simulated.route.name,
+      simulationEnabled: getSimulationEnabled()
+      ,mapSubKey: getMapSubKey()
+    })
+    this.seedRouteWithPoint(firstPoint)
+    await this.createCloudSession('SIMULATED', firstPoint)
+    this.persistState()
+    this.startTicker()
+    this.startSimulationPlayback()
+    wx.showToast({ title: '模拟跑步已开始', icon: 'success' })
+  },
+
+  startSimulationPlayback() {
+    this.stopSimulationPlayback()
+    this.simulationTimer = setInterval(() => {
+      if (!this.data.running || this.data.paused) {
+        return
+      }
+      const nextPoint = this.simulationQueue.shift()
+      if (!nextPoint) {
+        this.stopSimulationPlayback()
+        this.setData({
+          simulationCompleted: true,
+          cloudStatus: '模拟轨迹已生成，可结束上传'
+        })
+        return
+      }
+      this.sensorState.sampleCount += 1
+      this.sensorState.activeSampleCount += 1
+      this.sensorState.totalMagnitude += 1.16
+      this.sensorState.maxMagnitude = Math.max(this.sensorState.maxMagnitude, 1.22)
+      const summary = summarizeSensorState(this.sensorState)
+      this.setData({
+        motionConfidence: summary.motionConfidence,
+        motionLabel: '模拟运动',
+        sensorSampleCount: summary.sampleCount
+      })
+      this.appendRoutePoint(nextPoint)
+    }, 800)
+  },
+
+  stopSimulationPlayback() {
+    if (this.simulationTimer) {
+      clearInterval(this.simulationTimer)
+      this.simulationTimer = null
+    }
   },
 
   isActiveRunConflict(message) {
@@ -423,8 +820,11 @@ Page({
 
   async discardRunSession(runId, successMessage = '已放弃当前跑步') {
     await request.post(`/runs/${runId}/discard`, {})
+    await this.finalizeCloudSession('DISCARDED')
     this.stopTicker()
     this.stopLocationTracking()
+    this.stopMotionTracking()
+    this.stopSimulationPlayback()
     this.setData(getDefaultState())
     wx.removeStorageSync('campusRunCurrentRun')
     await this.refreshLocationPreviewSilently()
@@ -468,55 +868,13 @@ Page({
     this.applyRecoveredRun(current)
     if (current.state === 'RUNNING') {
       this.startTicker()
-      await this.startLocationTracking().catch(() => {})
+      if (this.data.runMode === 'REAL') {
+        await this.startLocationTracking().catch(() => {})
+        await this.startMotionTracking().catch(() => {})
+      }
     }
     await this.refreshLocationPreviewSilently()
     return 'recovered'
-  },
-
-  async startRun() {
-    if (this.data.recovering) {
-      return
-    }
-
-    try {
-      const location = await this.ensureLocationReady()
-      const systemInfo = wx.getSystemInfoSync()
-      const result = await request.post('/runs/start', {
-        source: 'wechat-miniapp',
-        deviceModel: systemInfo.model || '',
-        devicePlatform: systemInfo.platform || '',
-        clientVersion: systemInfo.version || '',
-        simulated: false
-      })
-
-      this.setData({
-        ...getDefaultState(),
-        sessionId: result.id,
-        running: true,
-        startedAtMs: Date.now()
-      })
-      this.seedRouteWithLocation(location)
-      this.persistState()
-      await this.startLocationTracking()
-      this.startTicker()
-      wx.showToast({ title: '开始跑步', icon: 'success' })
-    } catch (error) {
-      if (this.isActiveRunConflict(error.message)) {
-        const resolution = await this.handleActiveRunConflict()
-        if (resolution === 'discarded') {
-          return this.startRun()
-        }
-        if (resolution === 'recovered') {
-          return
-        }
-      }
-
-      this.setData({
-        locationError: error.message
-      })
-      wx.showToast({ title: error.message, icon: 'none' })
-    }
   },
 
   async pauseRun() {
@@ -529,6 +887,8 @@ Page({
       await request.post(`/runs/${this.data.sessionId}/pause`, {})
       this.stopTicker()
       this.stopLocationTracking()
+      this.stopMotionTracking()
+      this.stopSimulationPlayback()
       this.setData({
         paused: true,
         running: true,
@@ -549,7 +909,9 @@ Page({
     }
 
     try {
-      await this.ensureLocationReady()
+      if (this.data.runMode === 'REAL') {
+        await this.ensureLocationReady()
+      }
       await request.post(`/runs/${this.data.sessionId}/resume`, {})
       const now = Date.now()
       const pausedDurationMs = this.data.pausedDurationMs +
@@ -564,7 +926,12 @@ Page({
         pausedStartedAtMs: null,
         locationError: ''
       })
-      await this.startLocationTracking()
+      if (this.data.runMode === 'REAL') {
+        await this.startLocationTracking()
+        await this.startMotionTracking()
+      } else if (this.simulationQueue.length) {
+        this.startSimulationPlayback()
+      }
       this.persistState()
       this.startTicker()
     } catch (error) {
@@ -583,12 +950,19 @@ Page({
     try {
       this.stopTicker()
       this.stopLocationTracking()
+      this.stopMotionTracking()
+      this.stopSimulationPlayback()
       const durationSeconds = this.computeDurationSeconds()
       const routePoints = normalizeRoutePoints(this.data.routePoints)
+      const sensorSummary = summarizeSensorState(this.sensorState)
+      await this.finalizeCloudSession('FINISHED')
       await request.post(`/runs/${runId}/finish`, {
         distanceKm: Number(this.data.distanceKm.toFixed(3)),
         durationSeconds,
-        stepCount: Math.max(this.data.stepCount, Math.round(this.data.distanceKm * 1350)),
+        estimatedStepCount: Math.max(this.data.estimatedStepCount, Math.round(this.data.distanceKm * 1350)),
+        cloudSessionId: this.data.cloudSessionId || '',
+        sensorSummary: JSON.stringify(sensorSummary),
+        motionConfidence: sensorSummary.motionConfidence,
         routePoints
       })
       this.setData(getDefaultState())

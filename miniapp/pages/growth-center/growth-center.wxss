@@ -2,12 +2,22 @@
   background: linear-gradient(145deg, rgba(255, 244, 231, 0.98), rgba(255, 251, 246, 0.94));
 }
 
-.task-card {
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+}
+
+.task-card,
+.plan-select-card,
+.plan-card {
   padding: 18rpx 0;
   border-bottom: 2rpx solid rgba(31, 26, 24, 0.06);
 }
 
-.task-card:last-child {
+.task-card:last-child,
+.plan-select-card:last-child {
   border-bottom: none;
 }
 

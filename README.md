@@ -65,6 +65,7 @@ docker compose down -v
 说明：
 
 - `miniapp/config.js` 是本地生成文件，不纳入 Git 管理
+- 每台电脑都需要在本地重新生成自己的 `miniapp/config.js`，不会绑定到某一台机器
 - 如果微信开发者工具运行在 Windows、后端运行在 WSL，可单独执行：
 
 ```bash

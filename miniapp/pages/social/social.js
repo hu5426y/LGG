@@ -9,29 +9,39 @@ Page({
   data: {
     loading: true,
     errorMessage: '',
+    activeTab: 'feed',
     posts: [],
     commentsMap: {},
     content: '',
-    publishing: false
+    publishing: false,
+    clubs: [],
+    selectedClub: null,
+    clubMembers: [],
+    clubMessages: [],
+    loadingClubDetail: false
   },
 
   async onShow() {
     if (!requireLogin()) {
       return
     }
-    await this.loadPosts()
+    await this.loadData()
   },
 
-  async loadPosts() {
+  async loadData() {
     this.setData({
       loading: true,
       errorMessage: ''
     })
     try {
-      const posts = await request.get('/social/posts')
+      const [posts, clubs] = await Promise.all([
+        request.get('/social/posts'),
+        request.get('/social/clubs')
+      ])
       this.setData({
         loading: false,
-        posts: safeList(posts)
+        posts: safeList(posts),
+        clubs: safeList(clubs)
       })
     } catch (error) {
       this.setData({
@@ -39,6 +49,12 @@ Page({
         errorMessage: error.message
       })
     }
+  },
+
+  switchTab(event) {
+    this.setData({
+      activeTab: event.currentTarget.dataset.tab
+    })
   },
 
   handleInput(event) {
@@ -62,7 +78,7 @@ Page({
       })
       this.setData({ content: '' })
       wx.showToast({ title: '发布成功', icon: 'success' })
-      await this.loadPosts()
+      await this.loadData()
     } catch (error) {
       wx.showToast({ title: error.message, icon: 'none' })
     } finally {
@@ -74,7 +90,7 @@ Page({
     const { id } = event.currentTarget.dataset
     try {
       await request.post(`/social/posts/${id}/like`, {})
-      await this.loadPosts()
+      await this.loadData()
     } catch (error) {
       wx.showToast({ title: error.message, icon: 'none' })
     }
@@ -103,7 +119,7 @@ Page({
         content: modal.content
       })
       await this.loadComments({ currentTarget: { dataset: { id } } })
-      await this.loadPosts()
+      await this.loadData()
     } catch (error) {
       wx.showToast({ title: error.message, icon: 'none' })
     }
@@ -122,6 +138,103 @@ Page({
       wx.showToast({ title: '举报成功', icon: 'success' })
     } catch (error) {
       wx.showToast({ title: error.message, icon: 'none' })
+    }
+  },
+
+  async openClub(event) {
+    const club = event.currentTarget.dataset.club
+    if (!club || !club.id) {
+      return
+    }
+    this.setData({
+      selectedClub: club,
+      loadingClubDetail: true
+    })
+    try {
+      const [members, messages] = await Promise.all([
+        request.get(`/social/clubs/${club.id}/members`),
+        request.get(`/social/clubs/${club.id}/messages`)
+      ])
+      this.setData({
+        loadingClubDetail: false,
+        clubMembers: safeList(members),
+        clubMessages: safeList(messages)
+      })
+    } catch (error) {
+      this.setData({
+        loadingClubDetail: false,
+        clubMembers: [],
+        clubMessages: []
+      })
+      wx.showToast({
+        title: error.message || '请先加入该小队',
+        icon: 'none'
+      })
+    }
+  },
+
+  async joinClub(event) {
+    const { id } = event.currentTarget.dataset
+    try {
+      await request.post(`/social/clubs/${id}/join`, {})
+      wx.showToast({
+        title: '加入成功',
+        icon: 'success'
+      })
+      await this.loadData()
+      await this.openClub({ currentTarget: { dataset: { club: this.data.clubs.find((item) => item.id === id) || { id } } } })
+    } catch (error) {
+      wx.showToast({
+        title: error.message,
+        icon: 'none'
+      })
+    }
+  },
+
+  async leaveClub(event) {
+    const { id } = event.currentTarget.dataset
+    try {
+      await request.post(`/social/clubs/${id}/leave`, {})
+      wx.showToast({
+        title: '已退出小队',
+        icon: 'success'
+      })
+      this.setData({
+        selectedClub: null,
+        clubMembers: [],
+        clubMessages: []
+      })
+      await this.loadData()
+    } catch (error) {
+      wx.showToast({
+        title: error.message,
+        icon: 'none'
+      })
+    }
+  },
+
+  async sendClubMessage() {
+    if (!this.data.selectedClub?.id) {
+      return
+    }
+    const modal = await this.showEditableModal('发送小队消息', '输入本次约跑或通知内容')
+    if (!modal.confirm || !modal.content) {
+      return
+    }
+    try {
+      await request.post(`/social/clubs/${this.data.selectedClub.id}/messages`, {
+        content: modal.content
+      })
+      wx.showToast({
+        title: '消息已发送',
+        icon: 'success'
+      })
+      await this.openClub({ currentTarget: { dataset: { club: this.data.selectedClub } } })
+    } catch (error) {
+      wx.showToast({
+        title: error.message,
+        icon: 'none'
+      })
     }
   },
 

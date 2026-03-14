@@ -2,7 +2,11 @@
   <view class="hero-card">
     <view class="eyebrow">Run Session</view>
     <view class="hero-title">实时跑步记录</view>
-    <view class="hero-subtitle">通过实时定位记录真实轨迹、距离和配速，重新进入页面也能恢复当前状态。</view>
+    <view class="hero-subtitle">GPS 轨迹、配速分析、估算步数和云端轨迹分片同步都在这一页完成，开发环境还支持模拟路线联调。</view>
+    <view class="pill-row hero-pills">
+      <view class="pill">{{runMode === 'SIMULATED' ? '模拟模式' : '真实模式'}}</view>
+      <view class="pill">云状态：{{cloudStatus}}</view>
+    </view>
   </view>
 
   <view wx:if="{{recoveredSession && running}}" class="panel-card recovery-card">
@@ -11,14 +15,19 @@
     <view class="pill-row" style="margin-top: 18rpx;">
       <view class="pill">{{paused ? '已暂停' : '进行中'}}</view>
       <view class="pill">会话 ID：{{sessionId || '--'}}</view>
+      <view wx:if="{{cloudSessionId}}" class="pill">Cloud：{{cloudSessionId}}</view>
     </view>
   </view>
 
-  <view class="panel-card">
-    <view class="section-title">实时地图</view>
+  <view class="panel-card map-panel">
+    <view class="row-between section-header">
+      <view class="section-title">实时地图</view>
+      <view class="section-link">{{simulationName || (runMode === 'SIMULATED' ? '模拟路线' : '当前定位')}}</view>
+    </view>
     <map
       wx:if="{{mapReady}}"
       class="run-map"
+      subkey="{{mapSubKey}}"
       latitude="{{mapLatitude}}"
       longitude="{{mapLongitude}}"
       scale="{{mapScale}}"
@@ -35,11 +44,13 @@
       <view class="bullet-item">GPS：{{gpsReady ? '已定位' : '等待定位'}}</view>
       <view class="bullet-item">轨迹点：{{routePointCount}}</view>
       <view class="bullet-item">最近定位：{{lastLocationTime || '--'}}</view>
+      <view class="bullet-item">运动置信度：{{motionConfidence}}</view>
+      <view class="bullet-item">传感器采样：{{sensorSampleCount}}</view>
       <view wx:if="{{locationError}}" class="bullet-item bullet-warning">{{locationError}}</view>
     </view>
   </view>
 
-  <view class="metrics-grid">
+  <view class="metrics-grid run-metrics">
     <view class="metric-card">
       <view class="metric-label">时长</view>
       <view class="metric-value">{{formattedDuration}}</view>
@@ -49,12 +60,20 @@
       <view class="metric-value">{{distanceKm}} km</view>
     </view>
     <view class="metric-card">
-      <view class="metric-label">步数</view>
-      <view class="metric-value">{{stepCount}}</view>
+      <view class="metric-label">估算步数</view>
+      <view class="metric-value">{{estimatedStepCount}}</view>
     </view>
     <view class="metric-card">
       <view class="metric-label">平均配速</view>
       <view class="metric-value">{{pace}}</view>
+    </view>
+    <view class="metric-card">
+      <view class="metric-label">估算卡路里</view>
+      <view class="metric-value">{{calories}}</view>
+    </view>
+    <view class="metric-card">
+      <view class="metric-label">运动状态</view>
+      <view class="metric-value metric-mini">{{motionLabel}}</view>
     </view>
   </view>
 
@@ -63,9 +82,10 @@
     <view class="pill-row" style="margin-bottom: 20rpx;">
       <view class="pill">{{running ? (paused ? '已暂停' : '进行中') : (recovering ? '恢复中' : '待开始')}}</view>
       <view class="pill">会话 ID：{{sessionId || '--'}}</view>
+      <view wx:if="{{simulationCompleted}}" class="pill">模拟轨迹已完成</view>
     </view>
 
-    <view class="muted helper-copy">有效跑步默认要求至少 5 分钟、0.5 公里，并成功采集足够轨迹点。</view>
+    <view class="muted helper-copy">有效跑步默认要求至少 5 分钟、0.5 公里，并成功采集足够轨迹点。开发环境可通过“模拟跑步”联调全流程，无需真实拿手机跑步。</view>
 
     <button wx:if="{{!running}}" class="accent-button" loading="{{recovering}}" disabled="{{recovering}}" bindtap="startRun">开始跑步</button>
     <button wx:if="{{running && !paused}}" class="ghost-button" style="margin-top: 16rpx;" bindtap="pauseRun">暂停</button>

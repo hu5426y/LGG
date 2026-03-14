@@ -1,6 +1,7 @@
 const request = require('../../services/request')
 const { requireLogin } = require('../../utils/auth')
 const { navigateTo, switchTab, openBannerTarget } = require('../../utils/navigation')
+const { buildMapState, normalizeRoutePoints, normalizePoint } = require('../../utils/run-map')
 
 function safeList(value) {
   return Array.isArray(value) ? value : []
@@ -14,6 +15,7 @@ Page({
   data: {
     loading: true,
     errorMessage: '',
+    mapSubKey: '',
     homeData: {
       banners: [],
       hotPosts: [],
@@ -30,7 +32,19 @@ Page({
     overview: {
       badges: [],
       tasks: []
-    }
+    },
+    todayCheckin: {
+      checkedIn: false,
+      streakDays: 0
+    },
+    currentPlan: {
+      active: false,
+      currentDayIndex: 1,
+      template: null,
+      days: []
+    },
+    latestRun: null,
+    ...buildMapState([], null)
   },
 
   async onShow() {
@@ -43,14 +57,24 @@ Page({
   async loadData() {
     this.setData({
       loading: true,
-      errorMessage: ''
+      errorMessage: '',
+      mapSubKey: getApp().globalData.mapSubKey || ''
     })
     try {
-      const [homeData, profile, overview] = await Promise.all([
+      const [homeData, userData, overview, todayCheckin, currentPlan] = await Promise.all([
         request.get('/public/home'),
         request.get('/user/me'),
-        request.get('/gamification/overview')
+        request.get('/gamification/overview'),
+        request.get('/checkins/today'),
+        request.get('/run-plans/current')
       ])
+      const recentRuns = safeList(userData?.recentRuns)
+      const latestRunSummary = recentRuns[0] || null
+      let latestRunDetail = null
+      if (latestRunSummary?.id) {
+        latestRunDetail = await request.get(`/runs/${latestRunSummary.id}`).catch(() => null)
+      }
+      await this.applyMapPreview(latestRunDetail)
       this.setData({
         loading: false,
         homeData: {
@@ -61,20 +85,59 @@ Page({
           leaderboard: safeList(homeData?.leaderboard)
         },
         profile: {
-          displayName: profile?.profile?.displayName || '',
-          totalDistanceKm: safeNumber(profile?.profile?.totalDistanceKm, 0),
-          points: safeNumber(profile?.profile?.points, 0),
-          levelValue: safeNumber(profile?.profile?.levelValue, 1)
+          displayName: userData?.profile?.displayName || '',
+          totalDistanceKm: safeNumber(userData?.profile?.totalDistanceKm, 0),
+          points: safeNumber(userData?.profile?.points, 0),
+          levelValue: safeNumber(userData?.profile?.levelValue, 1)
         },
         overview: {
           badges: safeList(overview?.badges),
           tasks: safeList(overview?.tasks)
-        }
+        },
+        todayCheckin: {
+          checkedIn: Boolean(todayCheckin?.checkedIn),
+          streakDays: safeNumber(todayCheckin?.streakDays, 0)
+        },
+        currentPlan: currentPlan?.template
+          ? currentPlan
+          : { active: false, currentDayIndex: 1, template: null, days: [] },
+        latestRun: latestRunDetail
       })
     } catch (error) {
       this.setData({
         loading: false,
         errorMessage: error.message
+      })
+    }
+  },
+
+  async applyMapPreview(latestRunDetail) {
+    const routePoints = normalizeRoutePoints(latestRunDetail?.routePoints)
+    if (routePoints.length) {
+      this.setData({
+        ...buildMapState(routePoints, routePoints[routePoints.length - 1])
+      })
+      return
+    }
+    try {
+      const location = await new Promise((resolve, reject) => {
+        wx.getLocation({
+          type: 'gcj02',
+          success: resolve,
+          fail: reject
+        })
+      })
+      const point = normalizePoint({
+        latitude: location.latitude,
+        longitude: location.longitude,
+        timestamp: Date.now()
+      })
+      this.setData({
+        ...buildMapState([], point)
+      })
+    } catch (error) {
+      this.setData({
+        ...buildMapState([], null)
       })
     }
   },

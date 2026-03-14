@@ -46,6 +46,15 @@
   word-break: break-all;
 }
 
+.warning-banner {
+  margin-top: 8rpx;
+  padding: 20rpx 22rpx;
+  border-radius: 20rpx;
+  background: rgba(224, 146, 37, 0.14);
+  color: #8b5200;
+  font-size: 24rpx;
+}
+
 .error-banner {
   margin-top: 8rpx;
   padding: 20rpx 22rpx;

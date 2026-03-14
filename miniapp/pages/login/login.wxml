@@ -2,21 +2,39 @@
   <view class="hero-card login-hero">
     <view class="eyebrow login-eyebrow">Campus Run</view>
     <view class="hero-title">校园乐跑</view>
-    <view class="hero-subtitle login-subtitle">本地版默认使用账号密码登录，便于快速联调后端、后台和小程序页面。</view>
+    <view class="hero-subtitle login-subtitle">
+      本地版默认使用账号密码登录，便于快速联调后端、后台和小程序页面。
+    </view>
   </view>
 
   <view class="panel-card">
     <view class="section-title">账号登录</view>
     <view class="form-box">
-      <input class="input-box" placeholder="学号 / 用户名" data-field="username" value="{{username}}" bindinput="handleInput" />
-      <input class="input-box" placeholder="密码" password data-field="password" value="{{password}}" bindinput="handleInput" />
+      <input
+        class="input-box"
+        placeholder="学号 / 用户名"
+        data-field="username"
+        value="{{username}}"
+        bindinput="handleInput"
+      />
+      <input
+        class="input-box"
+        placeholder="密码"
+        password
+        data-field="password"
+        value="{{password}}"
+        bindinput="handleInput"
+      />
       <button class="accent-button" loading="{{loading}}" bindtap="handlePasswordLogin">登录进入系统</button>
       <view class="muted">开发环境默认保留账号密码登录，便于页面联调和展示。</view>
+      <view wx:if="{{targetWarningMessage}}" class="warning-banner">{{targetWarningMessage}}</view>
       <view class="env-card">
-        <view class="env-label">当前接口</view>
-        <view class="env-value">{{apiBaseUrl}}</view>
-        <view class="muted">真机调试建议改成 HTTPS 公网地址，避免手机请求无响应。</view>
-        <button class="ghost-button mini-pill" bindtap="copyApiAddress">复制接口地址</button>
+        <view class="env-label">{{targetTitle}}</view>
+        <view class="env-value">{{targetValue}}</view>
+        <view class="muted">{{targetHelper}}</view>
+        <button class="ghost-button mini-pill" bindtap="copyTargetValue">
+          {{requestMode === 'cloud' ? '复制服务名' : '复制接口地址'}}
+        </button>
       </view>
       <view wx:if="{{errorMessage}}" class="error-banner">{{errorMessage}}</view>
     </view>

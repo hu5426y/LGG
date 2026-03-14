@@ -7,7 +7,10 @@ import java.util.List;
 public record FinishRunRequest(
         @NotNull Double distanceKm,
         @NotNull Integer durationSeconds,
-        @NotNull Integer stepCount,
+        @NotNull Integer estimatedStepCount,
+        String cloudSessionId,
+        String sensorSummary,
+        Double motionConfidence,
         @Valid List<RunRoutePointRequest> routePoints
 ) {
     public FinishRunRequest {

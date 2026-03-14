@@ -1,5 +1,7 @@
 package com.ljj.campusrun.social;
 
+import com.ljj.campusrun.domain.entity.Club;
+import com.ljj.campusrun.domain.entity.ClubMember;
 import com.ljj.campusrun.domain.entity.ClubMessage;
 import com.ljj.campusrun.domain.entity.FeedPost;
 import com.ljj.campusrun.domain.entity.PostComment;
@@ -7,6 +9,7 @@ import com.ljj.campusrun.domain.entity.PostLike;
 import com.ljj.campusrun.domain.entity.PostReport;
 import com.ljj.campusrun.domain.entity.User;
 import com.ljj.campusrun.domain.enums.ReviewStatus;
+import com.ljj.campusrun.repository.ClubMemberRepository;
 import com.ljj.campusrun.repository.ClubMessageRepository;
 import com.ljj.campusrun.repository.ClubRepository;
 import com.ljj.campusrun.repository.FeedPostRepository;
@@ -14,6 +17,7 @@ import com.ljj.campusrun.repository.PostCommentRepository;
 import com.ljj.campusrun.repository.PostLikeRepository;
 import com.ljj.campusrun.repository.PostReportRepository;
 import com.ljj.campusrun.repository.UserRepository;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class SocialService {
 
-    private static final Set<String> SENSITIVE_WORDS = Set.of("赌博", "外挂", "刷单", "兼职送彩金", "黄色");
+    private static final Set<String> SENSITIVE_WORDS = Set.of("赌博", "外挂", "刷单", "兼职返利", "黄色");
 
     private final FeedPostRepository feedPostRepository;
     private final PostCommentRepository postCommentRepository;
@@ -34,6 +38,7 @@ public class SocialService {
     private final PostReportRepository postReportRepository;
     private final ClubRepository clubRepository;
     private final ClubMessageRepository clubMessageRepository;
+    private final ClubMemberRepository clubMemberRepository;
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
@@ -52,7 +57,7 @@ public class SocialService {
         post.setImageUrls(request.imageUrls());
         String riskTags = SENSITIVE_WORDS.stream()
                 .filter(request.content()::contains)
-                .reduce((a, b) -> a + "," + b)
+                .reduce((left, right) -> left + "," + right)
                 .orElse(null);
         post.setRiskTags(riskTags);
         post.setReviewStatus(riskTags == null ? ReviewStatus.APPROVED : ReviewStatus.PENDING);
@@ -116,11 +121,14 @@ public class SocialService {
 
     @Transactional(readOnly = true)
     public Object listClubs() {
-        return clubRepository.findByActiveTrueOrderByMemberCountDesc();
+        return clubRepository.findByActiveTrueOrderByMemberCountDesc().stream()
+                .map(this::mapClub)
+                .toList();
     }
 
     @Transactional(readOnly = true)
-    public Object listClubMessages(Long clubId) {
+    public Object listClubMessages(Long userId, Long clubId) {
+        ensureClubMember(clubId, userId);
         return clubMessageRepository.findTop30ByClubIdOrderByCreatedAtDesc(clubId).stream()
                 .map(this::mapClubMessage)
                 .toList();
@@ -128,8 +136,9 @@ public class SocialService {
 
     @Transactional
     public Object sendClubMessage(Long userId, Long clubId, CreateClubMessageRequest request) {
+        ensureClubMember(clubId, userId);
         ClubMessage message = new ClubMessage();
-        message.setClub(clubRepository.findById(clubId).orElseThrow(() -> new IllegalArgumentException("跑团不存在")));
+        message.setClub(clubRepository.findById(clubId).orElseThrow(() -> new IllegalArgumentException("跑步小队不存在")));
         message.setUser(getUser(userId));
         message.setContent(request.content());
         ClubMessage saved = clubMessageRepository.save(message);
@@ -140,12 +149,71 @@ public class SocialService {
         return data;
     }
 
+    @Transactional
+    public Object joinClub(Long userId, Long clubId) {
+        User user = getUser(userId);
+        Club club = clubRepository.findById(clubId).orElseThrow(() -> new IllegalArgumentException("跑步小队不存在"));
+        clubMemberRepository.findByClubIdAndUserId(clubId, userId).ifPresentOrElse(member -> {
+            if (Boolean.TRUE.equals(member.getActive())) {
+                throw new IllegalArgumentException("已经加入该小队");
+            }
+            member.setActive(true);
+            member.setJoinedAt(LocalDateTime.now());
+            clubMemberRepository.save(member);
+        }, () -> {
+            ClubMember member = new ClubMember();
+            member.setClub(club);
+            member.setUser(user);
+            member.setRole("MEMBER");
+            member.setJoinedAt(LocalDateTime.now());
+            clubMemberRepository.save(member);
+        });
+        refreshClubMemberCount(club);
+        return mapClub(club);
+    }
+
+    @Transactional
+    public Object leaveClub(Long userId, Long clubId) {
+        ClubMember member = clubMemberRepository.findByClubIdAndUserId(clubId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("尚未加入该小队"));
+        member.setActive(false);
+        clubMemberRepository.save(member);
+        Club club = clubRepository.findById(clubId).orElseThrow(() -> new IllegalArgumentException("跑步小队不存在"));
+        refreshClubMemberCount(club);
+        return Map.of("clubId", clubId, "left", true);
+    }
+
+    @Transactional(readOnly = true)
+    public Object listClubMembers(Long userId, Long clubId) {
+        ensureClubMember(clubId, userId);
+        return clubMemberRepository.findByClubIdAndActiveTrueOrderByJoinedAtAsc(clubId).stream()
+                .map(member -> Map.<String, Object>of(
+                        "id", member.getId(),
+                        "role", member.getRole(),
+                        "joinedAt", member.getJoinedAt(),
+                        "user", mapUserSummary(member.getUser())
+                ))
+                .toList();
+    }
+
     private FeedPost getPost(Long postId) {
         return feedPostRepository.findById(postId).orElseThrow(() -> new IllegalArgumentException("动态不存在"));
     }
 
     private User getUser(Long userId) {
         return userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+    }
+
+    private void ensureClubMember(Long clubId, Long userId) {
+        if (!clubMemberRepository.existsByClubIdAndUserIdAndActiveTrue(clubId, userId)) {
+            throw new IllegalArgumentException("请先加入跑步小队");
+        }
+    }
+
+    private void refreshClubMemberCount(Club club) {
+        int memberCount = clubMemberRepository.findByClubIdAndActiveTrueOrderByJoinedAtAsc(club.getId()).size();
+        club.setMemberCount(memberCount);
+        clubRepository.save(club);
     }
 
     private Object mapPost(FeedPost post) {
@@ -180,6 +248,16 @@ public class SocialService {
         data.put("createdAt", message.getCreatedAt());
         data.put("clubId", message.getClub().getId());
         data.put("user", mapUserSummary(message.getUser()));
+        return data;
+    }
+
+    private Map<String, Object> mapClub(Club club) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("id", club.getId());
+        data.put("name", club.getName());
+        data.put("slogan", club.getSlogan() == null ? "" : club.getSlogan());
+        data.put("description", club.getDescription() == null ? "" : club.getDescription());
+        data.put("memberCount", club.getMemberCount());
         return data;
     }
 

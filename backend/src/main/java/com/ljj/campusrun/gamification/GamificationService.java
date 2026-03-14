@@ -9,11 +9,15 @@ import com.ljj.campusrun.domain.entity.UserTaskProgress;
 import com.ljj.campusrun.domain.enums.RunState;
 import com.ljj.campusrun.repository.BadgeRepository;
 import com.ljj.campusrun.repository.ChallengeTaskRepository;
+import com.ljj.campusrun.repository.ClubMemberRepository;
+import com.ljj.campusrun.repository.DailyCheckinRepository;
 import com.ljj.campusrun.repository.LevelRuleRepository;
 import com.ljj.campusrun.repository.RunSessionRepository;
 import com.ljj.campusrun.repository.UserBadgeRepository;
 import com.ljj.campusrun.repository.UserTaskProgressRepository;
 import com.ljj.campusrun.repository.UserRepository;
+import com.ljj.campusrun.repository.UserRunPlanRepository;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,6 +37,9 @@ public class GamificationService {
     private final LevelRuleRepository levelRuleRepository;
     private final RunSessionRepository runSessionRepository;
     private final UserRepository userRepository;
+    private final DailyCheckinRepository dailyCheckinRepository;
+    private final UserRunPlanRepository userRunPlanRepository;
+    private final ClubMemberRepository clubMemberRepository;
 
     @Transactional(readOnly = true)
     public Map<String, Object> getOverview(Long userId) {
@@ -118,12 +125,23 @@ public class GamificationService {
 
     private void awardBadges(User user) {
         long finishedRuns = runSessionRepository.countByUserIdAndState(user.getId(), RunState.FINISHED);
+        int latestStreak = dailyCheckinRepository.findTopByUserIdAndCheckinDateLessThanOrderByCheckinDateDesc(
+                        user.getId(), LocalDate.now().plusDays(1))
+                .map(checkin -> checkin.getStreakDays())
+                .orElse(0);
+        long completedPlans = userRunPlanRepository.findByUserIdOrderByCreatedAtDesc(user.getId()).stream()
+                .filter(plan -> "COMPLETED".equals(plan.getStatus()))
+                .count();
+        long squadParticipation = clubMemberRepository.countByUserIdAndActiveTrue(user.getId());
         List<Badge> badges = badgeRepository.findByActiveTrueOrderByRuleThresholdAsc();
         for (Badge badge : badges) {
             boolean shouldGrant = switch (badge.getRuleType()) {
                 case "TOTAL_DISTANCE" -> user.getTotalDistanceKm() >= badge.getRuleThreshold();
                 case "RUN_COUNT" -> finishedRuns >= badge.getRuleThreshold();
                 case "POINTS" -> user.getPoints() >= badge.getRuleThreshold();
+                case "CHECKIN_STREAK" -> latestStreak >= badge.getRuleThreshold();
+                case "PLAN_COMPLETION" -> completedPlans >= badge.getRuleThreshold();
+                case "SQUAD_PARTICIPATION" -> squadParticipation >= badge.getRuleThreshold();
                 default -> false;
             };
             if (shouldGrant && !userBadgeRepository.existsByUserIdAndBadgeId(user.getId(), badge.getId())) {

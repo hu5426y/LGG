@@ -1,58 +1,131 @@
 <view class="page-wrap">
-  <view class="panel-card">
-    <view class="section-title">发布动态</view>
-    <view class="form-box">
-      <textarea class="textarea-box" placeholder="记录今天的跑步瞬间、配速突破或组队邀请" value="{{content}}" bindinput="handleInput"></textarea>
-      <button class="accent-button" loading="{{publishing}}" bindtap="publishPost">发布动态</button>
-    </view>
+  <view class="tab-strip">
+    <view class="tab-pill {{activeTab === 'feed' ? 'tab-active' : ''}}" data-tab="feed" bindtap="switchTab">跑友圈</view>
+    <view class="tab-pill {{activeTab === 'clubs' ? 'tab-active' : ''}}" data-tab="clubs" bindtap="switchTab">跑步小队</view>
   </view>
 
   <view wx:if="{{loading}}" class="panel-card">
     <view class="section-title">加载中</view>
-    <view class="muted">正在同步校园动态。</view>
+    <view class="muted">正在同步校园动态和小队数据。</view>
   </view>
 
   <view wx:if="{{!loading && errorMessage}}" class="panel-card">
     <view class="section-title">加载失败</view>
     <view class="muted">{{errorMessage}}</view>
-    <button class="ghost-button" style="margin-top: 18rpx;" bindtap="loadPosts">重新加载</button>
+    <button class="ghost-button" style="margin-top: 18rpx;" bindtap="loadData">重新加载</button>
   </view>
 
-  <view wx:if="{{!loading && !errorMessage && !posts.length}}" class="panel-card">
-    <view class="section-title">还没有动态</view>
-    <view class="muted">发布第一条校园跑步分享，让更多同学看到你的状态。</view>
-  </view>
+  <block wx:if="{{!loading && !errorMessage && activeTab === 'feed'}}">
+    <view class="panel-card">
+      <view class="section-title">发布动态</view>
+      <view class="form-box">
+        <textarea class="textarea-box" placeholder="记录今天的跑步瞬间、配速突破或组队邀请" value="{{content}}" bindinput="handleInput"></textarea>
+        <button class="accent-button" loading="{{publishing}}" bindtap="publishPost">发布动态</button>
+      </view>
+    </view>
 
-  <block wx:for="{{posts}}" wx:key="id">
-    <view class="post-card">
-      <view class="post-header">
-        <view>
-          <view>{{item.user.displayName || '校园跑友'}}</view>
-          <view class="muted">{{item.createdAt || '刚刚更新'}}</view>
+    <view wx:if="{{!posts.length}}" class="panel-card">
+      <view class="section-title">还没有动态</view>
+      <view class="muted">发布第一条校园跑步分享，让更多同学看到你的状态。</view>
+    </view>
+
+    <block wx:for="{{posts}}" wx:key="id">
+      <view class="post-card">
+        <view class="post-header">
+          <view>
+            <view>{{item.user.displayName || '校园跑友'}}</view>
+            <view class="muted">{{item.createdAt || '刚刚更新'}}</view>
+          </view>
+          <view class="pill">{{item.featured ? '推荐' : (item.reviewStatus || '已发布')}}</view>
         </view>
-        <view class="pill">{{item.featured ? '推荐' : (item.reviewStatus || '已发布')}}</view>
-      </view>
-      <view class="divider"></view>
-      <view class="content-block">{{item.content || '这条动态暂时没有内容'}}</view>
-      <view class="pill-row" style="margin-top: 20rpx;">
-        <view class="pill">点赞 {{item.likeCount || 0}}</view>
-        <view class="pill">评论 {{item.commentCount || 0}}</view>
-      </view>
-      <view class="pill-row" style="margin-top: 20rpx;">
-        <button size="mini" class="ghost-button" data-id="{{item.id}}" bindtap="likePost">点赞</button>
-        <button size="mini" class="ghost-button" data-id="{{item.id}}" bindtap="loadComments">查看评论</button>
-        <button size="mini" class="ghost-button" data-id="{{item.id}}" bindtap="commentPost">评论</button>
-        <button size="mini" class="ghost-button" data-id="{{item.id}}" bindtap="reportPost">举报</button>
-      </view>
-
-      <block wx:if="{{commentsMap[item.id] && commentsMap[item.id].length}}">
         <view class="divider"></view>
-        <block wx:for="{{commentsMap[item.id]}}" wx:key="id" wx:for-item="comment">
-          <view class="comment-row">
-            <text class="comment-author">{{comment.user.displayName || '同学'}}：</text>
-            <text>{{comment.content || '暂无评论内容'}}</text>
+        <view class="content-block">{{item.content || '这条动态暂时没有内容'}}</view>
+        <view class="pill-row" style="margin-top: 20rpx;">
+          <view class="pill">点赞 {{item.likeCount || 0}}</view>
+          <view class="pill">评论 {{item.commentCount || 0}}</view>
+        </view>
+        <view class="pill-row" style="margin-top: 20rpx;">
+          <button size="mini" class="ghost-button" data-id="{{item.id}}" bindtap="likePost">点赞</button>
+          <button size="mini" class="ghost-button" data-id="{{item.id}}" bindtap="loadComments">查看评论</button>
+          <button size="mini" class="ghost-button" data-id="{{item.id}}" bindtap="commentPost">评论</button>
+          <button size="mini" class="ghost-button" data-id="{{item.id}}" bindtap="reportPost">举报</button>
+        </view>
+
+        <block wx:if="{{commentsMap[item.id] && commentsMap[item.id].length}}">
+          <view class="divider"></view>
+          <block wx:for="{{commentsMap[item.id]}}" wx:key="id" wx:for-item="comment">
+            <view class="comment-row">
+              <text class="comment-author">{{comment.user.displayName || '同学'}}：</text>
+              <text>{{comment.content || '暂无评论内容'}}</text>
+            </view>
+          </block>
+        </block>
+      </view>
+    </block>
+  </block>
+
+  <block wx:if="{{!loading && !errorMessage && activeTab === 'clubs'}}">
+    <view class="panel-card">
+      <view class="section-title">跑步小队</view>
+      <view class="muted">加入晨跑、夜跑或训练小队，组队消息和成员名单都会在这里同步。</view>
+      <block wx:if="{{clubs.length}}">
+        <block wx:for="{{clubs}}" wx:key="id">
+          <view class="club-card">
+            <view class="row-between">
+              <view>
+                <view class="task-title">{{item.name}}</view>
+                <view class="muted">{{item.slogan || item.description}}</view>
+              </view>
+              <view class="pill">{{item.memberCount}} 人</view>
+            </view>
+            <view class="muted">{{item.description}}</view>
+            <view class="pill-row" style="margin-top: 18rpx;">
+              <button size="mini" class="ghost-button" data-id="{{item.id}}" bindtap="joinClub">加入</button>
+              <button size="mini" class="ghost-button" data-id="{{item.id}}" bindtap="leaveClub">退出</button>
+              <button size="mini" class="ghost-button" data-club="{{item}}" bindtap="openClub">查看详情</button>
+            </view>
           </view>
         </block>
+      </block>
+      <view wx:else class="empty-state">当前还没有可加入的小队</view>
+    </view>
+
+    <view wx:if="{{selectedClub}}" class="panel-card">
+      <view class="row-between section-header">
+        <view class="section-title">{{selectedClub.name}}</view>
+        <button size="mini" class="accent-button" bindtap="sendClubMessage">发消息</button>
+      </view>
+      <view wx:if="{{loadingClubDetail}}" class="muted">正在加载小队详情…</view>
+      <block wx:else>
+        <view class="member-section">
+          <view class="task-title">成员列表</view>
+          <block wx:if="{{clubMembers.length}}">
+            <block wx:for="{{clubMembers}}" wx:key="id">
+              <view class="row-between member-row">
+                <view>{{item.user.displayName}}</view>
+                <view class="pill">{{item.role}}</view>
+              </view>
+            </block>
+          </block>
+          <view wx:else class="empty-state">加入小队后才能查看成员。</view>
+        </view>
+
+        <view class="divider"></view>
+        <view class="message-section">
+          <view class="task-title">小队消息</view>
+          <block wx:if="{{clubMessages.length}}">
+            <block wx:for="{{clubMessages}}" wx:key="id">
+              <view class="message-card">
+                <view class="row-between">
+                  <view>{{item.user.displayName}}</view>
+                  <view class="muted">{{item.createdAt}}</view>
+                </view>
+                <view class="content-block">{{item.content}}</view>
+              </view>
+            </block>
+          </block>
+          <view wx:else class="empty-state">加入小队后可以发送第一条约跑消息。</view>
+        </view>
       </block>
     </view>
   </block>

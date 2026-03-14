@@ -92,4 +92,14 @@ public class AdminController {
     public ApiResponse<Object> logs() {
         return ApiResponse.ok(adminService.listLogs());
     }
+
+    @GetMapping("/metrics/overview")
+    public ApiResponse<Object> metricsOverview() {
+        return ApiResponse.ok(adminService.metricsOverview());
+    }
+
+    @GetMapping("/metrics/trends")
+    public ApiResponse<Object> metricsTrends() {
+        return ApiResponse.ok(adminService.metricsTrends());
+    }
 }

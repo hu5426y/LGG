@@ -8,6 +8,8 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ljj.campusrun.admin.AuditLogService;
+import com.ljj.campusrun.admin.AdminMetricsService;
+import com.ljj.campusrun.checkin.CheckinService;
 import com.ljj.campusrun.config.RunValidationProperties;
 import com.ljj.campusrun.domain.entity.RunSession;
 import com.ljj.campusrun.domain.entity.User;
@@ -16,6 +18,7 @@ import com.ljj.campusrun.gamification.GamificationService;
 import com.ljj.campusrun.gamification.RankingService;
 import com.ljj.campusrun.repository.RunSessionRepository;
 import com.ljj.campusrun.repository.UserRepository;
+import com.ljj.campusrun.runplan.RunPlanService;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +35,9 @@ class RunValidationTest {
         RunValidationProperties properties = new RunValidationProperties();
         ObjectMapper objectMapper = new ObjectMapper();
         AuditLogService auditLogService = mock(AuditLogService.class);
+        RunPlanService runPlanService = mock(RunPlanService.class);
+        CheckinService checkinService = mock(CheckinService.class);
+        AdminMetricsService adminMetricsService = mock(AdminMetricsService.class);
         RunService runService = new RunService(
                 runSessionRepository,
                 userRepository,
@@ -39,7 +45,10 @@ class RunValidationTest {
                 rankingService,
                 properties,
                 objectMapper,
-                auditLogService
+                auditLogService,
+                runPlanService,
+                checkinService,
+                adminMetricsService
         );
 
         User user = new User();
@@ -60,6 +69,9 @@ class RunValidationTest {
                 2.0,
                 600,
                 3000,
+                null,
+                null,
+                null,
                 List.of(
                         new RunRoutePointRequest(31.1, 121.1, 1000L, 5.0, 1.0),
                         new RunRoutePointRequest(31.1001, 121.1001, 5000L, 5.0, 1.2)
@@ -78,6 +90,9 @@ class RunValidationTest {
         RunValidationProperties properties = new RunValidationProperties();
         ObjectMapper objectMapper = new ObjectMapper();
         AuditLogService auditLogService = mock(AuditLogService.class);
+        RunPlanService runPlanService = mock(RunPlanService.class);
+        CheckinService checkinService = mock(CheckinService.class);
+        AdminMetricsService adminMetricsService = mock(AdminMetricsService.class);
         RunService runService = new RunService(
                 runSessionRepository,
                 userRepository,
@@ -85,7 +100,10 @@ class RunValidationTest {
                 rankingService,
                 properties,
                 objectMapper,
-                auditLogService
+                auditLogService,
+                runPlanService,
+                checkinService,
+                adminMetricsService
         );
 
         User user = new User();
@@ -102,7 +120,7 @@ class RunValidationTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
-                runService.finish(1L, 12L, new FinishRunRequest(2.0, 600, 3000, null)));
+                runService.finish(1L, 12L, new FinishRunRequest(2.0, 600, 3000, null, null, null, null)));
 
         assertEquals("轨迹点过少，请开启定位后重试", exception.getMessage());
     }

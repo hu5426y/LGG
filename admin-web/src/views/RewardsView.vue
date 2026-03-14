@@ -25,7 +25,7 @@ async function load() {
 async function createBadge() {
   try {
     await http.post('/admin/badges', form)
-    ElMessage.success('勋章已创建')
+    ElMessage.success('Badge created')
     Object.assign(form, {
       code: '',
       name: '',
@@ -46,24 +46,27 @@ onMounted(load)
 <template>
   <div class="two-column">
     <section class="page-card">
-      <h3 class="section-title">新增勋章</h3>
+      <h3 class="section-title">Create Badge</h3>
       <div class="form-stack">
-        <el-input v-model="form.code" placeholder="唯一编码" />
-        <el-input v-model="form.name" placeholder="勋章名称" />
-        <el-input v-model="form.description" placeholder="说明" />
-        <el-input v-model="form.icon" placeholder="图标标识" />
-        <el-select v-model="form.ruleType" placeholder="达成规则">
-          <el-option label="累计里程" value="TOTAL_DISTANCE" />
-          <el-option label="跑步次数" value="RUN_COUNT" />
-          <el-option label="积分" value="POINTS" />
+        <el-input v-model="form.code" placeholder="Unique code" />
+        <el-input v-model="form.name" placeholder="Badge name" />
+        <el-input v-model="form.description" placeholder="Description" />
+        <el-input v-model="form.icon" placeholder="Icon key" />
+        <el-select v-model="form.ruleType" placeholder="Rule type">
+          <el-option label="Total distance" value="TOTAL_DISTANCE" />
+          <el-option label="Run count" value="RUN_COUNT" />
+          <el-option label="Points" value="POINTS" />
+          <el-option label="Check-in streak" value="CHECKIN_STREAK" />
+          <el-option label="Plan completion" value="PLAN_COMPLETION" />
+          <el-option label="Squad participation" value="SQUAD_PARTICIPATION" />
         </el-select>
         <el-input-number v-model="form.ruleThreshold" :min="1" />
-        <el-button class="accent-button" @click="createBadge">保存勋章</el-button>
+        <el-button class="accent-button" @click="createBadge">Save Badge</el-button>
       </div>
     </section>
 
     <section class="page-card">
-      <h3 class="section-title">勋章库</h3>
+      <h3 class="section-title">Badge Library</h3>
       <div class="timeline-list">
         <div v-for="badge in badges" :key="badge.id" class="timeline-item">
           <strong>{{ badge.name }}</strong>

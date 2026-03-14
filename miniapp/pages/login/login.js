@@ -6,7 +6,11 @@ Page({
     password: '',
     loading: false,
     errorMessage: '',
-    apiBaseUrl: '',
+    requestMode: 'http',
+    targetTitle: '',
+    targetValue: '',
+    targetHelper: '',
+    targetWarningMessage: '',
     devAccounts: [
       {
         label: '学生账号',
@@ -23,9 +27,16 @@ Page({
 
   onShow() {
     const token = wx.getStorageSync('campusRunToken')
+    const target = request.describeRequestTarget()
+
     this.setData({
-      apiBaseUrl: getApp().globalData.apiBaseUrl
+      requestMode: target.mode,
+      targetTitle: target.title,
+      targetValue: target.value,
+      targetHelper: target.helper,
+      targetWarningMessage: target.warningMessage
     })
+
     if (token) {
       wx.switchTab({
         url: '/pages/home/home'
@@ -59,6 +70,7 @@ Page({
     if (this.data.loading) {
       return
     }
+
     if (!this.data.username || !this.data.password) {
       this.setData({
         errorMessage: '请输入账号和密码后再登录'
@@ -74,6 +86,7 @@ Page({
       loading: true,
       errorMessage: ''
     })
+
     try {
       const data = await request.post('/auth/login', {
         username: this.data.username,
@@ -100,9 +113,9 @@ Page({
     }
   },
 
-  copyApiAddress() {
+  copyTargetValue() {
     wx.setClipboardData({
-      data: this.data.apiBaseUrl
+      data: this.data.targetValue
     })
   }
 })

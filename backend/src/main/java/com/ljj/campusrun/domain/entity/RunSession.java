@@ -68,4 +68,14 @@ public class RunSession extends BaseEntity {
 
     @Column(length = 32)
     private String clientVersion;
+
+    @Column(length = 64)
+    private String cloudSessionId;
+
+    @Column(nullable = false)
+    private Double motionConfidence = 0D;
+
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
+    private String sensorSummaryJson;
 }

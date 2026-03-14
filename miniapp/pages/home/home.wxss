@@ -1,17 +1,82 @@
-.hero-spotlight {
-  background: linear-gradient(145deg, rgba(255, 248, 241, 0.98), rgba(255, 238, 224, 0.96));
+.home-shell {
+  min-height: 100vh;
+  padding-bottom: 16rpx;
+}
+
+.home-hero {
+  margin-bottom: 20rpx;
+  background: linear-gradient(145deg, rgba(255, 250, 244, 0.98), rgba(255, 239, 229, 0.96));
+}
+
+.home-map-panel {
+  overflow: hidden;
+}
+
+.home-map {
+  width: 100%;
+  height: 46vh;
+  min-height: 420rpx;
+  max-height: 620rpx;
+  border-radius: 24rpx;
+}
+
+.placeholder-map {
+  background: linear-gradient(180deg, rgba(246, 226, 210, 0.95), rgba(247, 239, 229, 0.90));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 420rpx;
+  padding: 36rpx;
+  box-sizing: border-box;
+}
+
+.map-placeholder-title {
+  margin-bottom: 12rpx;
+}
+
+.home-map-meta {
+  margin-top: 18rpx;
 }
 
 .hero-pills {
-  margin-top: 20rpx;
+  margin-top: 18rpx;
 }
 
 .hero-action {
-  margin-top: 24rpx;
+  margin-top: 22rpx;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18rpx;
+  margin-bottom: 20rpx;
+}
+
+.floating-panel {
+  margin-top: 0;
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16rpx;
+}
+
+.shortcut-card {
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 248, 241, 0.88);
+}
+
+.shortcut-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  margin-bottom: 10rpx;
 }
 
 .banner-swiper {
-  height: 300rpx;
+  height: 280rpx;
 }
 
 .banner-slide {
@@ -22,10 +87,8 @@
   background-position: center;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-end;
   color: #fffaf4;
-  position: relative;
-  overflow: hidden;
 }
 
 .banner-chip {
@@ -34,18 +97,7 @@
   border-radius: 999rpx;
   background: rgba(255, 250, 244, 0.18);
   font-size: 22rpx;
-}
-
-.banner-arrow {
-  position: absolute;
-  top: 24rpx;
-  right: 28rpx;
-  font-size: 34rpx;
-  opacity: 0.9;
-}
-
-.banner-content {
-  margin-top: auto;
+  margin-bottom: 18rpx;
 }
 
 .banner-title {
@@ -83,10 +135,6 @@
   overflow: hidden;
 }
 
-.metric-icon {
-  font-size: 34rpx;
-}
-
 .metric-foot {
   margin-top: 12rpx;
   color: #b95c34;
@@ -112,7 +160,6 @@
   margin-top: 18rpx;
 }
 
-.task-row,
 .rank-row {
   padding: 10rpx 0;
 }
@@ -126,9 +173,4 @@
 .rank-badge {
   color: #d44b2b;
   font-weight: 700;
-}
-
-.activity-link,
-.tutorial-link {
-  margin-top: 16rpx;
 }

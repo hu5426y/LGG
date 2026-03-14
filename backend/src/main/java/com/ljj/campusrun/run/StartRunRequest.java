@@ -5,6 +5,7 @@ public record StartRunRequest(
         String deviceModel,
         String devicePlatform,
         String clientVersion,
+        String mode,
         Boolean simulated
 ) {
 }

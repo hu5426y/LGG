@@ -2,7 +2,7 @@
   <view class="hero-card growth-hero">
     <view class="eyebrow">Growth</view>
     <view class="hero-title">{{profile.displayName || '校园跑者'}} 的成长中心</view>
-    <view class="hero-subtitle">把任务、积分、等级和勋章集中放在一起，方便你随时查看进度。</view>
+    <view class="hero-subtitle">今天的计划、自动打卡和成就徽章都集中在这里，训练节奏一眼就能看到。</view>
     <view class="pill-row" style="margin-top: 20rpx;">
       <view class="pill">积分 {{profile.points}}</view>
       <view class="pill">Lv.{{profile.levelValue}}</view>
@@ -22,6 +22,76 @@
   </view>
 
   <block wx:if="{{!loading && !errorMessage}}">
+    <view class="summary-grid">
+      <view class="metric-card metric-highlight">
+        <view class="metric-label">今日打卡</view>
+        <view class="metric-value">{{todayCheckin.checkedIn ? '已完成' : '待完成'}}</view>
+        <view class="metric-foot">连续 {{todayCheckin.streakDays}} 天</view>
+      </view>
+      <view class="metric-card metric-highlight">
+        <view class="metric-label">当前计划</view>
+        <view class="metric-value">{{currentPlan.template ? currentPlan.template.title : '未选择'}}</view>
+        <view class="metric-foot">{{currentPlan.template ? ('Day ' + currentPlan.currentDayIndex) : '从下方选择'}}</view>
+      </view>
+    </view>
+
+    <view class="panel-card">
+      <view class="section-title">今日计划</view>
+      <block wx:if="{{currentPlan.template}}">
+        <view class="plan-card">
+          <view class="task-title">{{currentPlan.template.title}}</view>
+          <view class="muted">{{currentPlan.template.description}}</view>
+          <block wx:for="{{currentPlan.days}}" wx:key="id">
+            <view class="task-card">
+              <view class="row-between">
+                <view>
+                  <view class="task-title">Day {{item.dayIndex}} · {{item.title}}</view>
+                  <view class="muted">{{item.description}}</view>
+                </view>
+                <view class="pill">{{item.completed ? '已完成' : '待完成'}}</view>
+              </view>
+              <view class="muted">目标 {{item.targetDistanceKm || 0}} km / {{item.targetDurationMinutes || 0}} 分钟</view>
+            </view>
+          </block>
+        </view>
+      </block>
+      <view wx:else class="empty-state">还没有激活的跑步计划，先从下方模板里选一个。</view>
+    </view>
+
+    <view class="panel-card">
+      <view class="section-title">选择计划</view>
+      <block wx:if="{{planTemplates.length}}">
+        <block wx:for="{{planTemplates}}" wx:key="id">
+          <view class="plan-select-card">
+            <view class="row-between">
+              <view>
+                <view class="task-title">{{item.title}}</view>
+                <view class="muted">{{item.description}}</view>
+              </view>
+              <button size="mini" class="ghost-button" data-id="{{item.id}}" bindtap="selectPlan">选择</button>
+            </view>
+            <view class="muted">周期 {{item.durationDays}} 天 · 目标 {{item.targetDistanceKm || 0}} km</view>
+          </view>
+        </block>
+      </block>
+      <view wx:else class="empty-state">当前没有可选择的计划模板</view>
+    </view>
+
+    <view class="panel-card">
+      <view class="section-title">打卡历史</view>
+      <block wx:if="{{checkinHistory.length}}">
+        <block wx:for="{{checkinHistory}}" wx:key="id">
+          <view class="task-card">
+            <view class="row-between">
+              <view class="task-title">{{item.checkinDate}}</view>
+              <view class="pill">连续 {{item.streakDays}} 天</view>
+            </view>
+          </view>
+        </block>
+      </block>
+      <view wx:else class="empty-state">完成一次有效跑步后会自动记录今日打卡。</view>
+    </view>
+
     <view class="panel-card">
       <view class="section-title">任务进度</view>
       <block wx:if="{{tasks.length}}">
@@ -48,6 +118,7 @@
             <view class="badge-card">
               <view class="badge-icon">🏅</view>
               <view class="badge-name">{{item.name || '未命名勋章'}}</view>
+              <view class="muted">{{item.description || '完成更多跑步任务后解锁更多成就。'}}</view>
             </view>
           </block>
         </view>

@@ -1,8 +1,8 @@
-<view class="page-wrap">
-  <view class="hero-card hero-spotlight">
+<view class="page-wrap home-shell">
+  <view class="hero-card home-hero">
     <view class="eyebrow">Campus Run</view>
     <view class="hero-title">欢迎回来，{{profile.displayName || '同学'}}</view>
-    <view class="hero-subtitle">今天也把碎片时间跑成成绩，去完成你的下一段校园里程。</view>
+    <view class="hero-subtitle">地图就是今天的主场。直接开始跑步，或者先看下打卡和计划推进。</view>
     <view class="pill-row hero-pills">
       <view class="pill">累计 {{profile.totalDistanceKm}} km</view>
       <view class="pill">积分 {{profile.points}}</view>
@@ -11,9 +11,36 @@
     <button class="accent-button hero-action" bindtap="goRun">立即开始跑步</button>
   </view>
 
+  <view class="panel-card home-map-panel">
+    <view class="row-between section-header">
+      <view class="section-title">校园地图</view>
+      <view class="section-link">{{latestRun ? '最近轨迹预览' : (mapReady ? '当前位置' : '等待定位')}}</view>
+    </view>
+    <map
+      wx:if="{{mapReady}}"
+      class="home-map"
+      subkey="{{mapSubKey}}"
+      latitude="{{mapLatitude}}"
+      longitude="{{mapLongitude}}"
+      scale="{{mapScale}}"
+      markers="{{mapMarkers}}"
+      polyline="{{mapPolyline}}"
+      include-points="{{mapIncludePoints}}"
+      show-location
+    />
+    <view wx:else class="home-map placeholder-map">
+      <view class="section-title map-placeholder-title">等待地图数据</view>
+      <view class="muted">拿到定位或最近一次跑步轨迹后，这里会显示路线预览。</view>
+    </view>
+    <view class="pill-row home-map-meta">
+      <view class="pill">{{latestRun ? '已载入最近一次跑步轨迹' : (mapReady ? '已定位当前位置' : '暂未获取定位')}}</view>
+      <view wx:if="{{currentPlan.template}}" class="pill">计划 Day {{currentPlan.currentDayIndex}}</view>
+    </view>
+  </view>
+
   <view wx:if="{{loading}}" class="panel-card">
     <view class="section-title">加载中</view>
-    <view class="muted">正在同步首页数据，请稍候。</view>
+    <view class="muted">正在同步首页地图与业务数据，请稍候。</view>
   </view>
 
   <view wx:if="{{!loading && errorMessage}}" class="panel-card">
@@ -23,74 +50,48 @@
   </view>
 
   <block wx:if="{{!loading && !errorMessage}}">
+    <view class="summary-grid">
+      <view class="metric-card metric-highlight">
+        <view class="metric-label">今日打卡</view>
+        <view class="metric-value">{{todayCheckin.checkedIn ? '已完成' : '未完成'}}</view>
+        <view class="metric-foot">连续 {{todayCheckin.streakDays}} 天</view>
+      </view>
+      <view class="metric-card metric-highlight" bindtap="goGrowthCenter" hover-class="card-hover">
+        <view class="metric-label">当前计划</view>
+        <view class="metric-value">{{currentPlan.template ? currentPlan.template.title : '未选择'}}</view>
+        <view class="metric-foot">{{currentPlan.template ? ('Day ' + currentPlan.currentDayIndex) : '进入成长中心选择'}}</view>
+      </view>
+    </view>
+
+    <view class="panel-card floating-panel">
+      <view class="row-between section-header">
+        <view class="section-title">快捷入口</view>
+        <view class="section-link">{{latestRun ? '已载入最近轨迹' : '已载入当前定位'}}</view>
+      </view>
+      <view class="shortcut-grid">
+        <view class="shortcut-card" bindtap="goGrowthCenter">
+          <view class="shortcut-title">计划与打卡</view>
+          <view class="muted">任务 {{overview.tasks.length}} · 勋章 {{overview.badges.length}}</view>
+        </view>
+        <view class="shortcut-card" bindtap="goSocial">
+          <view class="shortcut-title">跑友圈</view>
+          <view class="muted">热门动态 {{homeData.hotPosts.length}}</view>
+        </view>
+        <view class="shortcut-card" bindtap="goActivities">
+          <view class="shortcut-title">活动与训练</view>
+          <view class="muted">推荐 {{homeData.recommendedActivities.length}}</view>
+        </view>
+        <view class="shortcut-card" bindtap="goRanking">
+          <view class="shortcut-title">排行榜</view>
+          <view class="muted">查看 Top 10</view>
+        </view>
+      </view>
+    </view>
+
     <view class="panel-card">
       <view class="row-between section-header">
-        <view class="section-title">轮播推荐</view>
-        <view class="muted section-tip">支持点击跳转</view>
-      </view>
-      <block wx:if="{{homeData.banners.length}}">
-        <swiper indicator-dots autoplay interval="3200" circular class="banner-swiper">
-          <block wx:for="{{homeData.banners}}" wx:key="id">
-            <swiper-item>
-              <view
-                class="banner-slide clickable-card"
-                data-link-type="{{item.linkType}}"
-                data-link-target="{{item.linkTarget}}"
-                bindtap="openBanner"
-                style="background-image: linear-gradient(160deg, rgba(34, 23, 18, 0.10), rgba(212, 75, 43, 0.20)), url({{item.imageUrl}});"
-              >
-                <view class="banner-chip">{{item.linkType || '推荐'}}</view>
-                <view class="banner-arrow">→</view>
-                <view class="banner-content">
-                  <view class="banner-title">{{item.title || '校园乐跑推荐'}}</view>
-                  <view class="banner-subtitle">{{item.subtitle || '精彩内容会展示在这里'}}</view>
-                </view>
-              </view>
-            </swiper-item>
-          </block>
-        </swiper>
-      </block>
-      <view wx:else class="empty-state">当前没有可展示的轮播内容</view>
-    </view>
-
-    <view class="metrics-grid">
-      <view class="metric-card clickable-card metric-highlight" bindtap="goGrowthCenter" hover-class="card-hover">
-        <view class="metric-icon">🏅</view>
-        <view class="metric-label">进行中任务</view>
-        <view class="metric-value">{{overview.tasks.length}}</view>
-        <view class="metric-foot">查看成长中心 →</view>
-      </view>
-      <view class="metric-card clickable-card metric-highlight" bindtap="goGrowthCenter" hover-class="card-hover">
-        <view class="metric-icon">✨</view>
-        <view class="metric-label">已获勋章</view>
-        <view class="metric-value">{{overview.badges.length}}</view>
-        <view class="metric-foot">查看成长中心 →</view>
-      </view>
-    </view>
-
-    <view class="panel-card clickable-card" bindtap="goGrowthCenter" hover-class="card-hover">
-      <view class="row-between section-header">
-        <view class="section-title">任务进度</view>
-        <view class="section-link">进入成长中心 →</view>
-      </view>
-      <block wx:if="{{overview.tasks.length}}">
-        <block wx:for="{{overview.tasks}}" wx:key="id">
-          <view class="row-between list-row task-row">
-            <view>
-              <view>{{item.task.title || '未命名任务'}}</view>
-              <view class="muted">{{item.currentValue || 0}} / {{item.task.goalValue || 0}}</view>
-            </view>
-            <view class="pill">{{item.completed ? '已完成' : (item.task.taskType || '进行中')}}</view>
-          </view>
-        </block>
-      </block>
-      <view wx:else class="empty-state">暂时没有任务进度数据</view>
-    </view>
-
-    <view class="panel-card clickable-card" bindtap="goRanking" hover-class="card-hover">
-      <view class="row-between section-header">
         <view class="section-title">排行榜 Top 3</view>
-        <view class="section-link">查看完整榜单 →</view>
+        <view class="section-link" bindtap="goRanking">查看完整榜单 →</view>
       </view>
       <block wx:if="{{homeData.leaderboard.length}}">
         <block wx:for="{{homeData.leaderboard}}" wx:key="userId">
@@ -114,10 +115,7 @@
       <block wx:if="{{homeData.hotPosts.length}}">
         <block wx:for="{{homeData.hotPosts}}" wx:key="id">
           <view class="activity-card clickable-card" data-id="{{item.id}}" bindtap="openPostDetail" hover-class="card-hover">
-            <view class="row-between">
-              <view class="mini-eyebrow">动态</view>
-              <view class="section-link">查看详情 →</view>
-            </view>
+            <view class="mini-eyebrow">动态</view>
             <view class="card-title">{{item.user.displayName || '校园跑友'}}</view>
             <view class="muted ellipsis-two">{{item.content || '这条动态暂时没有内容摘要'}}</view>
             <view class="pill-row card-pills">
@@ -132,43 +130,31 @@
 
     <view class="panel-card">
       <view class="row-between section-header">
-        <view class="section-title">推荐活动</view>
-        <view class="section-link" bindtap="goActivities">查看更多 →</view>
+        <view class="section-title">轮播推荐</view>
+        <view class="muted section-tip">支持点击跳转</view>
       </view>
-      <block wx:if="{{homeData.recommendedActivities.length}}">
-        <block wx:for="{{homeData.recommendedActivities}}" wx:key="id">
-          <view class="activity-card clickable-card" data-id="{{item.id}}" bindtap="openActivityDetail" hover-class="card-hover">
-            <view class="row-between">
-              <view>
-                <view class="card-title">{{item.title || '未命名活动'}}</view>
-                <view class="muted">{{item.location || '地点待定'}}</view>
+      <block wx:if="{{homeData.banners.length}}">
+        <swiper indicator-dots autoplay interval="3200" circular class="banner-swiper">
+          <block wx:for="{{homeData.banners}}" wx:key="id">
+            <swiper-item>
+              <view
+                class="banner-slide clickable-card"
+                data-link-type="{{item.linkType}}"
+                data-link-target="{{item.linkTarget}}"
+                bindtap="openBanner"
+                style="background-image: linear-gradient(160deg, rgba(34, 23, 18, 0.10), rgba(212, 75, 43, 0.20)), url({{item.imageUrl}});"
+              >
+                <view class="banner-chip">{{item.linkType || '推荐'}}</view>
+                <view class="banner-content">
+                  <view class="banner-title">{{item.title || '校园乐跑推荐'}}</view>
+                  <view class="banner-subtitle">{{item.subtitle || '精彩内容会展示在这里'}}</view>
+                </view>
               </view>
-              <view class="pill">{{item.status || '待发布'}}</view>
-            </view>
-            <view class="section-link activity-link">查看活动详情 →</view>
-          </view>
-        </block>
-        <button class="ghost-button" bindtap="goActivities">查看更多活动</button>
+            </swiper-item>
+          </block>
+        </swiper>
       </block>
-      <view wx:else class="empty-state">当前没有推荐活动</view>
-    </view>
-
-    <view class="panel-card">
-      <view class="row-between section-header">
-        <view class="section-title">训练教程</view>
-        <view class="section-link" bindtap="goActivities">浏览全部 →</view>
-      </view>
-      <block wx:if="{{homeData.tutorials.length}}">
-        <block wx:for="{{homeData.tutorials}}" wx:key="id">
-          <view class="activity-card clickable-card" data-id="{{item.id}}" bindtap="openTutorialDetail" hover-class="card-hover">
-            <view class="mini-eyebrow">训练</view>
-            <view class="card-title">{{item.title || '训练教程'}}</view>
-            <view class="muted">{{item.summary || '教程摘要将在这里显示'}}</view>
-            <view class="section-link tutorial-link">阅读详情 →</view>
-          </view>
-        </block>
-      </block>
-      <view wx:else class="empty-state">当前没有可展示的跑步教程</view>
+      <view wx:else class="empty-state">当前没有可展示的轮播内容</view>
     </view>
   </block>
 </view>

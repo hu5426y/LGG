@@ -38,6 +38,7 @@ async function submit() {
       <section class="login-form">
         <h2>登录后台</h2>
         <p>请使用管理员账号进入控制台。</p>
+        <p>默认账号：`admin` / `admin123`</p>
         <el-form class="form-stack" @submit.prevent="submit">
           <el-input v-model="form.username" placeholder="管理员用户名" size="large" />
           <el-input v-model="form.password" type="password" show-password placeholder="密码" size="large" />

@@ -40,6 +40,7 @@ public class AdminService {
     private final ActivityService activityService;
     private final AuditLogService auditLogService;
     private final PasswordEncoder passwordEncoder;
+    private final AdminMetricsService adminMetricsService;
 
     @Transactional(readOnly = true)
     public Map<String, Object> dashboard() {
@@ -188,6 +189,16 @@ public class AdminService {
         return auditLogRepository.findTop100ByOrderByCreatedAtDesc().stream()
                 .map(this::mapLog)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Object metricsOverview() {
+        return adminMetricsService.getOverview();
+    }
+
+    @Transactional(readOnly = true)
+    public Object metricsTrends() {
+        return adminMetricsService.getTrends();
     }
 
     private Map<String, Object> mapStudent(User user) {
