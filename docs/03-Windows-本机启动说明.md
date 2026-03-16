@@ -29,17 +29,18 @@
 2. `JDK 17`
 3. `Apache Maven`
 4. `Node.js LTS`
-5. `MySQL Installer`
+5. `MySQL Server`
 6. `Memurai Developer`
 7. 可选 `微信开发者工具`
 
 然后继续做：
 
 1. 修正 `JAVA_HOME`
-2. 安装或启动 `MySQL80`
-3. 创建 `campus_run` 库和 `campus / campus123` 账号
-4. 安装或启动 `Memurai` Windows 服务
-5. 输出版本检查结果
+2. 自动解压并配置 `Maven`
+3. 自动初始化 `MySQL80` 服务、数据目录和 `root` 密码
+4. 创建 `campus_run` 库和 `campus / campus123` 账号
+5. 安装或启动 `Memurai` Windows 服务
+6. 输出版本检查结果
 
 项目当前要求来自这些配置文件：
 
@@ -97,6 +98,58 @@ powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap-windows-env.ps1 -Sk
 - 第一次配置 MySQL 时，脚本会要求你输入本地 `root` 密码，或者设置一个新的 `root` 密码
 
 如果自动脚本跑完了，本节后面的手动安装内容可以只当排障手册看。
+
+## 3.1 新电脑从零部署的推荐顺序
+
+这部分是这次实测后整理出的“最短可落地流程”。新电脑第一次部署时，建议严格按这个顺序做，不要一上来同时开多个终端。
+
+1. 用管理员权限打开 `PowerShell`
+2. 进入项目根目录
+3. 执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap-windows-env.ps1
+```
+
+4. 脚本提示输入 `MySQL root` 密码时，输入一个你自己记得住的本地开发密码，例如 `root123`
+5. 等到看到 `Bootstrap finished.`
+6. 再执行一次版本检查：
+
+```powershell
+git --version
+java -version
+mvn -v
+node -v
+npm -v
+```
+
+7. 第一次启动后端时，优先手动启动，便于直接看报错：
+
+```powershell
+cd .\backend
+$env:SPRING_PROFILES_ACTIVE="dev"
+$env:SPRING_DATASOURCE_URL="jdbc:mysql://localhost:3306/campus_run?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai"
+$env:SPRING_DATASOURCE_USERNAME="campus"
+$env:SPRING_DATASOURCE_PASSWORD="campus123"
+$env:SPRING_DATA_REDIS_HOST="localhost"
+$env:SPRING_DATA_REDIS_PORT="6379"
+$env:CAMPUSRUN_SWAGGER_ENABLED="true"
+$env:CAMPUSRUN_RUN_ALLOW_SIMULATED_RUNS="true"
+mvn spring-boot:run
+```
+
+8. 等到后端日志出现 `Started CampusRunApplication`
+9. 另开一个 `PowerShell` 窗口，到 [admin-web](/home/huge/dev/LJJ/admin-web) 执行：
+
+```powershell
+cd .\admin-web
+npm.cmd run dev -- --host 127.0.0.1
+```
+
+10. 浏览器打开 `http://127.0.0.1:5173`
+11. 如果手动启动确认没有问题，再回过头使用 `dev-up-windows.ps1`
+
+如果你希望全程走脚本，建议至少等第一次手动启动成功后再切回脚本模式，这样后续排障成本会低很多。
 
 ## 4. Git for Windows
 
@@ -322,6 +375,20 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev-up-windows.ps1 -MySqlPort
 powershell -ExecutionPolicy Bypass -File .\scripts\dev-up-windows.ps1 -ApiBaseUrl "http://127.0.0.1:8080/api"
 ```
 
+说明：
+
+- 第一次在新电脑上执行 `dev-up-windows.ps1` 时，后端可能会先下载大量 Maven 依赖
+- 在依赖还没下载完之前，`admin-web` 可以先打开，但登录接口可能报 `500` 或代理错误
+- 这时候不要急着判断账号密码有问题，先等后端真正启动完成
+- 可以用下面的命令确认后端是否已经就绪：
+
+```powershell
+Get-Content .\scripts\.runtime\windows\backend.log -Wait
+curl http://127.0.0.1:8080/actuator/health
+```
+
+只有当健康检查返回 `{"status":"UP"}` 后，再去浏览器登录后台。
+
 ## 13. Windows 关闭脚本
 
 关闭命令：
@@ -351,6 +418,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev-down-windows.ps1
 - 学生：`20230002 / 123456`
 
 这些账号来自 [backend/src/main/resources/db/devdata/R__seed_demo_data.sql](/home/huge/dev/LJJ/backend/src/main/resources/db/devdata/R__seed_demo_data.sql)。
+
+前提：
+
+- 后端已经成功启动
+- `Flyway` 迁移已经执行完成
+- 演示数据已经正常导入
 
 ## 15. 小程序导入方式
 
@@ -384,6 +457,15 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev-down-windows.ps1
 - `http://127.0.0.1:8080/actuator/health`
 - `scripts/.runtime/windows/backend.log`
 
+如果 `admin-web.log` 里看到：
+
+```text
+http proxy error: /api/auth/login
+AggregateError [ECONNREFUSED]
+```
+
+说明前端已经起来了，但后端 `8080` 当时还没有完成启动。先等后端依赖下载和 Spring Boot 启动结束，再刷新页面重试。
+
 ### 16.6 小程序真机请求失败
 
 不要直接用 `127.0.0.1` 做真机接口地址。真机需要手机能访问的 `HTTPS` 公网地址。
@@ -392,25 +474,55 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev-down-windows.ps1
 
 先安装或更新 `App Installer`。`winget` 是微软官方的 Windows 包管理器，自动安装脚本依赖它。
 
-### 16.8 自动脚本装了 MySQL Installer，但 MySQL80 服务没出来
+### 16.8 自动脚本已经装了 MySQL，但 MySQL80 服务没出来
 
-这类问题通常出在 Oracle 的 Windows 安装器本身。先看：
+旧版本脚本曾经依赖 `MySQL Installer Console`。当前脚本已经改成直接检测 `mysqld.exe/mysql.exe`，并自动：
+
+- 初始化数据目录
+- 注册 `MySQL80` Windows 服务
+- 设置 `root` 密码
+- 创建 `campus_run` 和 `campus / campus123`
+
+如果你仍然遇到 MySQL 相关问题，先看：
 
 - `scripts/.runtime/windows/bootstrap.log`
 
-然后手动打开：
-
-```text
-C:\Program Files (x86)\MySQL\MySQL Installer for Windows\MySQLInstallerConsole.exe
-```
-
-或者直接启动 MySQL Installer 图形界面，把 `MySQL Server` 配好，再重新运行：
+再确认下面三项：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap-windows-env.ps1
+Get-Service MySQL80
+& "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -h localhost -P 3306 -u root "-p你的root密码" -e "SELECT VERSION();"
+& "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -h localhost -P 3306 -u campus "-pcampus123" -e "SHOW DATABASES;"
 ```
 
-### 16.9 自动脚本执行后，当前终端还是找不到新命令
+如果 `campus` 账号登录失败，可以手动重建：
+
+```powershell
+& "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -h localhost -P 3306 -u root "-p你的root密码" -e "CREATE DATABASE IF NOT EXISTS campus_run CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS 'campus'@'localhost' IDENTIFIED BY 'campus123'; ALTER USER 'campus'@'localhost' IDENTIFIED BY 'campus123'; GRANT ALL PRIVILEGES ON campus_run.* TO 'campus'@'localhost'; FLUSH PRIVILEGES;"
+```
+
+### 16.9 `npm` 在 PowerShell 里报执行策略错误
+
+如果你在 PowerShell 里看到类似：
+
+```text
+npm.ps1，因为在此系统上禁止运行脚本
+```
+
+优先用下面这两种方式之一：
+
+```powershell
+npm.cmd run dev -- --host 127.0.0.1
+```
+
+或者：
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+npm run dev -- --host 127.0.0.1
+```
+
+### 16.10 自动脚本执行后，当前终端还是找不到新命令
 
 关闭 PowerShell，重新打开一个管理员 PowerShell，再执行：
 
@@ -421,3 +533,54 @@ mvn -v
 node -v
 npm -v
 ```
+
+如果是运行 [scripts/dev-up-windows.ps1](/home/huge/dev/LJJ/scripts/dev-up-windows.ps1) 时才出现这个问题，先更新到当前仓库版本。当前脚本已经会在启动前主动刷新注册表中的 `PATH`、`JAVA_HOME`、`MAVEN_HOME`。
+
+### 16.11 后端报 `Access denied for user 'campus'@'localhost'`
+
+这说明：
+
+- MySQL 已经启动
+- 但业务账号 `campus` 不存在，或密码不对，或授权不对
+
+先验证 root：
+
+```powershell
+& "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -h localhost -P 3306 -u root "-p你的root密码" -e "SELECT VERSION();"
+```
+
+再重建业务账号：
+
+```powershell
+& "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -h localhost -P 3306 -u root "-p你的root密码" -e "CREATE DATABASE IF NOT EXISTS campus_run CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS 'campus'@'localhost' IDENTIFIED BY 'campus123'; ALTER USER 'campus'@'localhost' IDENTIFIED BY 'campus123'; GRANT ALL PRIVILEGES ON campus_run.* TO 'campus'@'localhost'; FLUSH PRIVILEGES;"
+```
+
+再验证：
+
+```powershell
+& "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -h localhost -P 3306 -u campus "-pcampus123" -e "SHOW DATABASES;"
+```
+
+### 16.12 使用脚本启动后登录接口返回 `500`
+
+先不要立刻判断是账号密码错误，先确认后端是否真的已经完成启动。
+
+如果 [scripts/.runtime/windows/admin-web.log](/home/huge/dev/LJJ/scripts/.runtime/windows/admin-web.log) 里出现：
+
+```text
+http proxy error: /api/auth/login
+AggregateError [ECONNREFUSED]
+```
+
+这通常表示：
+
+- `admin-web` 已经起来了
+- 但 `backend` 还在下载 Maven 依赖，或者 Spring Boot 还没监听 `8080`
+
+先执行：
+
+```powershell
+curl http://127.0.0.1:8080/actuator/health
+```
+
+等后端返回 `UP` 再登录。

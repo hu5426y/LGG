@@ -4,9 +4,11 @@ param(
     [switch]$SkipMemuraiConfiguration,
     [int]$MySqlPort = 3306,
     [string]$MySqlRootPassword,
+    [string]$MySqlServiceName = "MySQL80",
     [string]$CampusDatabase = "campus_run",
     [string]$CampusUser = "campus",
-    [string]$CampusUserPassword = "campus123"
+    [string]$CampusUserPassword = "campus123",
+    [string]$MavenVersion = "3.9.12"
 )
 
 $ErrorActionPreference = "Stop"
@@ -76,7 +78,7 @@ function Get-JavaMajorVersion {
         return $null
     }
 
-    $output = & java -version 2>&1 | Out-String
+    $output = & cmd.exe /c "java -version 2>&1" | Out-String
     if ($output -match 'version "(\d+)(\.[^"]*)?"') {
         return [int]$Matches[1]
     }
@@ -134,13 +136,30 @@ function Ensure-WingetPackage {
         [scriptblock]$Satisfied
     )
 
-    $satisfied = & $Satisfied
-    if ($satisfied) {
+    $isSatisfied = & $Satisfied
+    if ($isSatisfied) {
         Write-Info "$DisplayName already looks ready."
         return
     }
 
     Install-WingetPackage -PackageId $PackageId -DisplayName $DisplayName
+}
+
+function Ensure-MySqlSoftware {
+    $mysqlCli = Get-MySqlCliPath
+    $mysqldExe = Get-MySqlServerExePath
+    if ((-not [string]::IsNullOrWhiteSpace($mysqlCli)) -and (-not [string]::IsNullOrWhiteSpace($mysqldExe))) {
+        Write-Info "MySQL binaries already look ready."
+        return
+    }
+
+    Install-WingetPackage -PackageId "Oracle.MySQL" -DisplayName "MySQL Server"
+
+    $mysqlCli = Get-MySqlCliPath
+    $mysqldExe = Get-MySqlServerExePath
+    if ([string]::IsNullOrWhiteSpace($mysqlCli) -or [string]::IsNullOrWhiteSpace($mysqldExe)) {
+        throw "MySQL binaries were not found after winget install. Verify the Oracle.MySQL package on this machine."
+    }
 }
 
 function Find-LatestTemurin17Home {
@@ -186,6 +205,151 @@ function Ensure-JavaHome {
         $newPath = "{0};{1}" -f (Join-Path $javaHome "bin"), [Environment]::GetEnvironmentVariable("Path", "Machine")
         [Environment]::SetEnvironmentVariable("Path", $newPath, "Machine")
         Refresh-EnvironmentFromRegistry
+    }
+}
+
+function Find-LatestMavenHome {
+    $roots = @(
+        "C:\Tools",
+        "C:\Program Files\Apache",
+        "C:\Program Files"
+    )
+
+    $candidates = foreach ($root in $roots) {
+        if (-not (Test-Path $root)) {
+            continue
+        }
+
+        Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue |
+            ForEach-Object {
+                if ($_.Name -match '^apache-maven-(\d+\.\d+\.\d+)$') {
+                    [pscustomobject]@{
+                        FullName = $_.FullName
+                        Name = $_.Name
+                        Version = [Version]$Matches[1]
+                    }
+                }
+            }
+    }
+
+    return ($candidates | Sort-Object Version -Descending | Select-Object -First 1).FullName
+}
+
+function Ensure-MachinePathContains {
+    param([string]$DirectoryPath)
+
+    if ([string]::IsNullOrWhiteSpace($DirectoryPath) -or -not (Test-Path $DirectoryPath)) {
+        return
+    }
+
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $entries = @()
+    if (-not [string]::IsNullOrWhiteSpace($machinePath)) {
+        $entries = $machinePath -split ';'
+    }
+
+    if (-not ($entries | Where-Object { $_ -eq $DirectoryPath })) {
+        $newPath = if ([string]::IsNullOrWhiteSpace($machinePath)) {
+            $DirectoryPath
+        } else {
+            "{0};{1}" -f $DirectoryPath, $machinePath
+        }
+        [Environment]::SetEnvironmentVariable("Path", $newPath, "Machine")
+    }
+
+    Refresh-EnvironmentFromRegistry
+}
+
+function Ensure-MavenHome {
+    $mavenHome = Find-LatestMavenHome
+    if ([string]::IsNullOrWhiteSpace($mavenHome)) {
+        Write-Info "Maven was not detected. Skipping Maven environment fixup."
+        return
+    }
+
+    $currentMavenHome = [Environment]::GetEnvironmentVariable("MAVEN_HOME", "Machine")
+    $currentM2Home = [Environment]::GetEnvironmentVariable("M2_HOME", "Machine")
+    if ($currentMavenHome -ne $mavenHome -or $currentM2Home -ne $mavenHome) {
+        Write-Step "Configuring MAVEN_HOME"
+        [Environment]::SetEnvironmentVariable("MAVEN_HOME", $mavenHome, "Machine")
+        [Environment]::SetEnvironmentVariable("M2_HOME", $mavenHome, "Machine")
+    }
+
+    Ensure-MachinePathContains -DirectoryPath (Join-Path $mavenHome "bin")
+}
+
+function Get-MavenDownloadUrls {
+    param([string]$Version)
+
+    $archiveName = "apache-maven-$Version-bin.zip"
+    return @(
+        "https://mirrors.aliyun.com/apache/maven/maven-3/$Version/binaries/$archiveName",
+        "https://downloads.apache.org/maven/maven-3/$Version/binaries/$archiveName",
+        "https://archive.apache.org/dist/maven/maven-3/$Version/binaries/$archiveName"
+    )
+}
+
+function Download-FileWithFallback {
+    param(
+        [string[]]$Urls,
+        [string]$OutFile,
+        [string]$DisplayName
+    )
+
+    foreach ($url in $Urls) {
+        try {
+            Write-Info "Downloading $DisplayName from $url"
+            Invoke-WebRequest -Uri $url -OutFile $OutFile -UseBasicParsing
+            return
+        } catch {
+            Write-Info "Download failed from $url"
+            if (Test-Path $OutFile) {
+                Remove-Item -Path $OutFile -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    throw "Failed to download $DisplayName from all configured URLs."
+}
+
+function Ensure-MavenInstalled {
+    if (Test-CommandExists -Name "mvn") {
+        Write-Info "Apache Maven already looks ready."
+        return
+    }
+
+    $existingMavenHome = Find-LatestMavenHome
+    if (-not [string]::IsNullOrWhiteSpace($existingMavenHome)) {
+        Ensure-MavenHome
+        if (Test-CommandExists -Name "mvn") {
+            Write-Info "Apache Maven already looks ready."
+            return
+        }
+    }
+
+    $toolsDir = "C:\Tools"
+    $archiveName = "apache-maven-$MavenVersion-bin.zip"
+    $archivePath = Join-Path $runtimeDir $archiveName
+    $installHome = Join-Path $toolsDir "apache-maven-$MavenVersion"
+
+    if (-not (Test-Path $archivePath)) {
+        Write-Step "Downloading Apache Maven $MavenVersion"
+        Download-FileWithFallback -Urls (Get-MavenDownloadUrls -Version $MavenVersion) -OutFile $archivePath -DisplayName "Apache Maven $MavenVersion"
+    } else {
+        Write-Info "Reusing cached Maven archive at $archivePath"
+    }
+
+    if (-not (Test-Path $installHome)) {
+        Write-Step "Installing Apache Maven $MavenVersion"
+        New-Item -ItemType Directory -Force -Path $toolsDir | Out-Null
+        Expand-Archive -Path $archivePath -DestinationPath $toolsDir -Force
+    } else {
+        Write-Info "Apache Maven $MavenVersion is already unpacked."
+    }
+
+    Ensure-MavenHome
+    if (-not (Test-CommandExists -Name "mvn")) {
+        throw "Apache Maven was unpacked, but mvn is still unavailable. Open a new PowerShell window and rerun this script."
     }
 }
 
@@ -239,47 +403,270 @@ function Get-MySqlInstallerConsolePath {
         }
     }
 
+    $roots = @(
+        "C:\Program Files (x86)\MySQL",
+        "C:\Program Files\MySQL"
+    )
+
+    foreach ($root in $roots) {
+        if (-not (Test-Path $root)) {
+            continue
+        }
+
+        $match = Get-ChildItem -Path $root -Filter MySQLInstallerConsole.exe -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+
+        if ($null -ne $match) {
+            return $match.FullName
+        }
+    }
+
     return $null
 }
 
-function Get-MySqlCliPath {
-    $matches = Get-ChildItem -Path "C:\Program Files\MySQL" -Filter mysql.exe -Recurse -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -match 'MySQL Server .*\\bin\\mysql\.exe$' } |
-        Sort-Object FullName -Descending
+function Get-MySqlExecutablePath {
+    param([string]$ExecutableName)
 
-    return ($matches | Select-Object -First 1).FullName
+    $roots = @(
+        "C:\Program Files\MySQL",
+        "C:\Program Files (x86)\MySQL"
+    )
+    $pattern = 'MySQL Server .*\\bin\\' + [Regex]::Escape($ExecutableName) + '$'
+
+    $matches = foreach ($root in $roots) {
+        if (-not (Test-Path $root)) {
+            continue
+        }
+
+        Get-ChildItem -Path $root -Filter $ExecutableName -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match $pattern }
+    }
+
+    return ($matches | Sort-Object FullName -Descending | Select-Object -First 1).FullName
 }
 
-function Ensure-MySqlServer {
-    if (Get-Service -Name "MySQL80" -ErrorAction SilentlyContinue) {
-        Write-Info "MySQL80 service already exists."
+function Get-MySqlCliPath {
+    return Get-MySqlExecutablePath -ExecutableName "mysql.exe"
+}
+
+function Get-MySqlServerExePath {
+    return Get-MySqlExecutablePath -ExecutableName "mysqld.exe"
+}
+
+function Get-MySqlBaseDir {
+    $mysqldExe = Get-MySqlServerExePath
+    if ([string]::IsNullOrWhiteSpace($mysqldExe)) {
+        return $null
+    }
+
+    return Split-Path -Parent (Split-Path -Parent $mysqldExe)
+}
+
+function Get-ManagedMySqlPaths {
+    $configRoot = Join-Path $env:ProgramData ("MySQL\" + $MySqlServiceName)
+    return [pscustomobject]@{
+        ConfigRoot = $configRoot
+        ConfigPath = Join-Path $configRoot "my.ini"
+        DataDir = Join-Path $configRoot "data"
+    }
+}
+
+function ConvertTo-IniPath {
+    param([string]$Path)
+
+    return $Path -replace '\\', '/'
+}
+
+function Get-MySqlService {
+    $preferredNames = @($MySqlServiceName, "MySQL80", "MySQL", "mysql") | Select-Object -Unique
+    foreach ($name in $preferredNames) {
+        $service = Get-Service -Name $name -ErrorAction SilentlyContinue
+        if ($null -ne $service) {
+            return $service
+        }
+    }
+
+    return Get-Service -Name "MySQL*" -ErrorAction SilentlyContinue | Sort-Object Name | Select-Object -First 1
+}
+
+function Write-MySqlOptionFile {
+    param(
+        [string]$BaseDir,
+        [string]$ConfigPath,
+        [string]$DataDir
+    )
+
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ConfigPath) | Out-Null
+    New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
+
+    $content = @"
+[client]
+port=$MySqlPort
+
+[mysqld]
+basedir=$(ConvertTo-IniPath -Path $BaseDir)
+datadir=$(ConvertTo-IniPath -Path $DataDir)
+port=$MySqlPort
+bind-address=127.0.0.1
+character-set-server=utf8mb4
+collation-server=utf8mb4_unicode_ci
+"@
+
+    Set-Content -Path $ConfigPath -Value $content -Encoding ASCII
+}
+
+function Test-MySqlDataDirectoryInitialized {
+    param([string]$DataDir)
+
+    return (Test-Path (Join-Path $DataDir "mysql")) -and (Test-Path (Join-Path $DataDir "performance_schema"))
+}
+
+function Initialize-MySqlDataDirectory {
+    param(
+        [string]$MySqlServerExe,
+        [string]$ConfigPath,
+        [string]$DataDir
+    )
+
+    if (Test-MySqlDataDirectoryInitialized -DataDir $DataDir) {
         return
     }
 
-    $installerConsole = Get-MySqlInstallerConsolePath
-    if ([string]::IsNullOrWhiteSpace($installerConsole)) {
-        throw "MySQL Installer Console was not found after winget install. Check Oracle.MySQL installation."
+    $existingEntries = @()
+    if (Test-Path $DataDir) {
+        $existingEntries = Get-ChildItem -Path $DataDir -Force -ErrorAction SilentlyContinue | Select-Object -First 1
     }
 
-    $rootPassword = Resolve-MySqlRootPassword
+    if (($existingEntries.Count -gt 0) -and (-not (Test-MySqlDataDirectoryInitialized -DataDir $DataDir))) {
+        throw "MySQL data directory exists but is not initialized: $DataDir. Remove it or complete setup manually before rerunning the script."
+    }
 
-    Write-Step "Installing and configuring MySQL Server"
-    & $installerConsole install "server:*:type=config;open_win_firewall=true;tcp_ip=true;port=$MySqlPort;root_passwd=$rootPassword" --auto-handle-prereqs --only-ga-products --silent
-
+    Write-Step "Initializing MySQL data directory"
+    & $MySqlServerExe "--defaults-file=$ConfigPath" --initialize-insecure --console
     if ($LASTEXITCODE -ne 0) {
-        throw "MySQL Installer Console failed to configure MySQL Server. Open MySQL Installer manually and complete server setup."
+        throw "mysqld failed to initialize the MySQL data directory."
     }
 }
 
+function Register-MySqlWindowsService {
+    param(
+        [string]$MySqlServerExe,
+        [string]$ConfigPath
+    )
+
+    $service = Get-Service -Name $MySqlServiceName -ErrorAction SilentlyContinue
+    if ($null -ne $service) {
+        return
+    }
+
+    Write-Step "Registering $MySqlServiceName service"
+    & $MySqlServerExe --install $MySqlServiceName "--defaults-file=$ConfigPath"
+    if ($LASTEXITCODE -ne 0) {
+        $service = Get-Service -Name $MySqlServiceName -ErrorAction SilentlyContinue
+        if ($null -eq $service) {
+            throw "mysqld failed to register the $MySqlServiceName Windows service."
+        }
+    }
+}
+
+function ConvertTo-MySqlStringLiteral {
+    param([string]$Value)
+
+    return "'" + $Value.Replace("\", "\\").Replace("'", "''") + "'"
+}
+
+function Test-MySqlRootConnection {
+    param(
+        [string]$Password,
+        [switch]$UseBlankPassword
+    )
+
+    $mysqlCli = Get-MySqlCliPath
+    if ([string]::IsNullOrWhiteSpace($mysqlCli)) {
+        return $false
+    }
+
+    $command = '"' + $mysqlCli + '" --protocol=TCP -h localhost -P ' + $MySqlPort + ' -u root --connect-timeout=5'
+    if ($UseBlankPassword) {
+        $command += " --skip-password"
+    } else {
+        $command += ' "-p' + $Password + '"'
+    }
+    $command += ' -e "SELECT 1;" 1>nul 2>nul'
+
+    & cmd.exe /c $command
+    return $LASTEXITCODE -eq 0
+}
+
+function Ensure-MySqlRootPassword {
+    $mysqlCli = Get-MySqlCliPath
+    if ([string]::IsNullOrWhiteSpace($mysqlCli)) {
+        throw "mysql.exe was not found after MySQL installation."
+    }
+
+    $rootPassword = Resolve-MySqlRootPassword
+    if (Test-MySqlRootConnection -Password $rootPassword) {
+        return $rootPassword
+    }
+
+    if (-not (Test-MySqlRootConnection -UseBlankPassword)) {
+        throw "Failed to connect to MySQL as root. Verify the configured MySQL root password for this machine."
+    }
+
+    $rootPasswordLiteral = ConvertTo-MySqlStringLiteral -Value $rootPassword
+    $sql = @"
+ALTER USER 'root'@'localhost' IDENTIFIED BY $rootPasswordLiteral;
+FLUSH PRIVILEGES;
+"@
+
+    Write-Step "Configuring MySQL root password"
+    $escapedSql = $sql.Replace('"', '\"')
+    $command = '"' + $mysqlCli + '" --protocol=TCP -h localhost -P ' + $MySqlPort + ' -u root --skip-password -e "' + $escapedSql + '"'
+    & cmd.exe /c $command
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to set the MySQL root password after initializing the MySQL data directory."
+    }
+
+    if (-not (Test-MySqlRootConnection -Password $rootPassword)) {
+        throw "Failed to verify the MySQL root password after initialization."
+    }
+
+    return $rootPassword
+}
+
+function Ensure-MySqlServer {
+    $service = Get-MySqlService
+    if ($null -ne $service) {
+        Write-Info ($service.Name + " service already exists.")
+        return
+    }
+
+    $mysqldExe = Get-MySqlServerExePath
+    if ([string]::IsNullOrWhiteSpace($mysqldExe)) {
+        throw "mysqld.exe was not found after MySQL installation."
+    }
+
+    $baseDir = Get-MySqlBaseDir
+    if ([string]::IsNullOrWhiteSpace($baseDir)) {
+        throw "Failed to determine the MySQL installation directory from mysqld.exe."
+    }
+
+    $managedPaths = Get-ManagedMySqlPaths
+    Write-MySqlOptionFile -BaseDir $baseDir -ConfigPath $managedPaths.ConfigPath -DataDir $managedPaths.DataDir
+    Initialize-MySqlDataDirectory -MySqlServerExe $mysqldExe -ConfigPath $managedPaths.ConfigPath -DataDir $managedPaths.DataDir
+    Register-MySqlWindowsService -MySqlServerExe $mysqldExe -ConfigPath $managedPaths.ConfigPath
+}
+
 function Ensure-MySqlRunning {
-    $service = Get-Service -Name "MySQL80" -ErrorAction SilentlyContinue
+    $service = Get-MySqlService
     if ($null -eq $service) {
-        throw "MySQL80 service was not found."
+        throw "No MySQL Windows service was found."
     }
 
     if ($service.Status -ne "Running") {
-        Write-Step "Starting MySQL80 service"
-        Start-Service -Name "MySQL80"
+        Write-Step ("Starting " + $service.Name + " service")
+        Start-Service -Name $service.Name
     }
 
     if (-not (Wait-Port -Port $MySqlPort -TimeoutSeconds 40)) {
@@ -293,17 +680,21 @@ function Initialize-ProjectDatabase {
         throw "mysql.exe was not found after MySQL installation."
     }
 
-    $rootPassword = Resolve-MySqlRootPassword
+    $rootPassword = Ensure-MySqlRootPassword
+    $campusUserLiteral = ConvertTo-MySqlStringLiteral -Value $CampusUser
+    $campusUserPasswordLiteral = ConvertTo-MySqlStringLiteral -Value $CampusUserPassword
     $sql = @"
 CREATE DATABASE IF NOT EXISTS $CampusDatabase CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '$CampusUser'@'localhost' IDENTIFIED BY '$CampusUserPassword';
-ALTER USER '$CampusUser'@'localhost' IDENTIFIED BY '$CampusUserPassword';
-GRANT ALL PRIVILEGES ON $CampusDatabase.* TO '$CampusUser'@'localhost';
+CREATE USER IF NOT EXISTS $campusUserLiteral@'localhost' IDENTIFIED BY $campusUserPasswordLiteral;
+ALTER USER $campusUserLiteral@'localhost' IDENTIFIED BY $campusUserPasswordLiteral;
+GRANT ALL PRIVILEGES ON $CampusDatabase.* TO $campusUserLiteral@'localhost';
 FLUSH PRIVILEGES;
 "@
 
     Write-Step "Initializing MySQL database and dev user"
-    & $mysqlCli --protocol=TCP -h 127.0.0.1 -P $MySqlPort -u root "-p$rootPassword" -e $sql
+    $escapedSql = $sql.Replace('"', '\"')
+    $command = '"' + $mysqlCli + '" --protocol=TCP -h localhost -P ' + $MySqlPort + ' -u root "-p' + $rootPassword + '" -e "' + $escapedSql + '"'
+    & cmd.exe /c $command
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to create the campus_run database or campus user. Verify the MySQL root password."
     }
@@ -360,14 +751,15 @@ function Ensure-MemuraiService {
 function Show-ValidationSummary {
     Write-Step "Validation summary"
     Write-Info ("git:  " + ((& git --version 2>$null) | Out-String).Trim())
-    Write-Info ("java: " + ((& java -version 2>&1 | Select-Object -First 1 | Out-String).Trim()))
+    Write-Info ("java: " + ((& cmd.exe /c "java -version 2>&1" | Select-Object -First 1 | Out-String).Trim()))
     Write-Info ("mvn:  " + ((& mvn -v 2>$null | Select-Object -First 2 | Out-String).Trim() -replace "`r?`n", " | "))
     Write-Info ("node: " + ((& node -v 2>$null) | Out-String).Trim())
 
-    if (Get-Service -Name "MySQL80" -ErrorAction SilentlyContinue) {
-        Write-Info "MySQL80 service: installed"
+    $mysqlService = Get-MySqlService
+    if ($null -ne $mysqlService) {
+        Write-Info ($mysqlService.Name + " service: installed")
     } else {
-        Write-Info "MySQL80 service: not detected"
+        Write-Info "MySQL service: not detected"
     }
 
     if (Get-Service -Name "Memurai" -ErrorAction SilentlyContinue) {
@@ -400,22 +792,18 @@ try {
     }
 
     Ensure-WingetPackage -PackageId "EclipseAdoptium.Temurin.17.JDK" -DisplayName "JDK 17" -Satisfied {
-        (Get-JavaMajorVersion) -eq 17
+        ((Get-JavaMajorVersion) -eq 17) -or ($null -ne (Find-LatestTemurin17Home))
     }
     Ensure-JavaHome
 
-    Ensure-WingetPackage -PackageId "Apache.Maven" -DisplayName "Apache Maven" -Satisfied {
-        Test-CommandExists -Name "mvn"
-    }
+    Ensure-MavenInstalled
 
     Ensure-WingetPackage -PackageId "OpenJS.NodeJS.LTS" -DisplayName "Node.js LTS" -Satisfied {
         $major = Get-NodeMajorVersion
         $null -ne $major -and $major -ge 20
     }
 
-    Ensure-WingetPackage -PackageId "Oracle.MySQL" -DisplayName "MySQL Installer" -Satisfied {
-        $null -ne (Get-MySqlInstallerConsolePath)
-    }
+    Ensure-MySqlSoftware
 
     Ensure-WingetPackage -PackageId "Memurai.MemuraiDeveloper" -DisplayName "Memurai Developer" -Satisfied {
         $null -ne (Get-MemuraiExePath)

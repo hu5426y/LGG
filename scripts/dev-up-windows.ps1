@@ -25,6 +25,26 @@ function Write-Step {
     Write-Host "==> $Message" -ForegroundColor Cyan
 }
 
+function Refresh-EnvironmentFromRegistry {
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $parts = @()
+    if (-not [string]::IsNullOrWhiteSpace($machinePath)) {
+        $parts += $machinePath
+    }
+    if (-not [string]::IsNullOrWhiteSpace($userPath)) {
+        $parts += $userPath
+    }
+    $env:Path = $parts -join ";"
+
+    foreach ($name in @("JAVA_HOME", "MAVEN_HOME", "M2_HOME")) {
+        $machineValue = [Environment]::GetEnvironmentVariable($name, "Machine")
+        if (-not [string]::IsNullOrWhiteSpace($machineValue)) {
+            Set-Item -Path ("Env:" + $name) -Value $machineValue
+        }
+    }
+}
+
 function Test-CommandExists {
     param([string]$CommandName)
     return $null -ne (Get-Command $CommandName -ErrorAction SilentlyContinue)
@@ -66,7 +86,7 @@ function Wait-Port {
 }
 
 function Get-JavaMajorVersion {
-    $javaVersionOutput = & java -version 2>&1
+    $javaVersionOutput = & cmd.exe /c "java -version 2>&1"
     $joined = ($javaVersionOutput | Out-String).Trim()
     if ($joined -match 'version "(\d+)(\.[^"]*)?"') {
         return [int]$Matches[1]
@@ -76,6 +96,7 @@ function Get-JavaMajorVersion {
 
 function Assert-Prerequisites {
     Write-Step "Checking required commands"
+    Refresh-EnvironmentFromRegistry
 
     $missing = @()
     foreach ($cmd in @("java", "mvn", "node", "npm")) {
@@ -255,7 +276,7 @@ Ensure-AdminDependencies
 
 Write-Step "Starting backend and admin-web"
 
-$backendCommand = "set SPRING_PROFILES_ACTIVE=dev && set SPRING_DATASOURCE_URL=jdbc:mysql://localhost:$MySqlPort/campus_run?useUnicode=true^&characterEncoding=UTF-8^&serverTimezone=Asia/Shanghai && set SPRING_DATASOURCE_USERNAME=campus && set SPRING_DATASOURCE_PASSWORD=campus123 && set SPRING_DATA_REDIS_HOST=localhost && set SPRING_DATA_REDIS_PORT=$RedisPort && set CAMPUSRUN_SWAGGER_ENABLED=true && set CAMPUSRUN_RUN_ALLOW_SIMULATED_RUNS=true && cd /d `"$backendDir`" && mvn spring-boot:run"
+$backendCommand = "set `"SPRING_PROFILES_ACTIVE=dev`" && set `"SPRING_DATASOURCE_URL=jdbc:mysql://localhost:$MySqlPort/campus_run?useUnicode=true^&characterEncoding=UTF-8^&serverTimezone=Asia/Shanghai`" && set `"SPRING_DATASOURCE_USERNAME=campus`" && set `"SPRING_DATASOURCE_PASSWORD=campus123`" && set `"SPRING_DATA_REDIS_HOST=localhost`" && set `"SPRING_DATA_REDIS_PORT=$RedisPort`" && set `"CAMPUSRUN_SWAGGER_ENABLED=true`" && set `"CAMPUSRUN_RUN_ALLOW_SIMULATED_RUNS=true`" && cd /d `"$backendDir`" && mvn spring-boot:run"
 $adminCommand = "cd /d `"$adminDir`" && npm run dev -- --host 127.0.0.1"
 
 $backendProcess = Start-ManagedProcess -Name "backend" -CommandLine $backendCommand -LogFile $backendLog
