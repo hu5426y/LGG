@@ -31,7 +31,7 @@ onMounted(load)
   <section class="page-card">
     <h3 class="section-title">待审核动态</h3>
     <el-table :data="posts" style="width: 100%">
-      <el-table-column prop="id" label="ID" width="80" />
+      <el-table-column prop="id" label="编号" width="80" />
       <el-table-column prop="content" label="内容" min-width="260" show-overflow-tooltip />
       <el-table-column prop="riskTags" label="风险标签" width="180" />
       <el-table-column prop="reportCount" label="举报数" width="100" />

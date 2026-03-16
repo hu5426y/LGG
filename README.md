@@ -66,10 +66,11 @@ docker compose down -v
 
 - `miniapp/config.js` 是本地生成文件，不纳入 Git 管理
 - 每台电脑都需要在本地重新生成自己的 `miniapp/config.js`，不会绑定到某一台机器
-- 如果微信开发者工具运行在 Windows、后端运行在 WSL，可单独执行：
+- 默认会写入 `http://127.0.0.1:8080/api`，适合微信开发者工具本地联调
+- 如果需要真机调试，可单独执行：
 
 ```bash
-./scripts/configure-miniapp-api.sh
+./scripts/configure-miniapp-api.sh <https-public-url>
 ```
 
 ## 学生导入
@@ -105,10 +106,10 @@ docker compose down -v
 
 ### 2. 小程序提示网络不可达
 
-检查 `miniapp/config.js` 指向的接口地址是否可访问。开发者工具和后端不在同一网络环境时，重新执行：
+检查 `miniapp/config.js` 指向的接口地址是否可访问。开发者工具本地联调默认使用 `http://127.0.0.1:8080/api`；如果要真机调试，重新执行：
 
 ```bash
-./scripts/configure-miniapp-api.sh
+./scripts/configure-miniapp-api.sh <https-public-url>
 ```
 
 ### 3. 想重新初始化数据库

@@ -90,7 +90,7 @@ onMounted(load)
         <el-date-picker v-model="activityForm.startTime" type="datetime" placeholder="开始时间" value-format="YYYY-MM-DDTHH:mm:ss" />
         <el-date-picker v-model="activityForm.endTime" type="datetime" placeholder="结束时间" value-format="YYYY-MM-DDTHH:mm:ss" />
         <el-date-picker v-model="activityForm.registrationDeadline" type="datetime" placeholder="报名截止时间" value-format="YYYY-MM-DDTHH:mm:ss" />
-        <el-input v-model="activityForm.coverUrl" placeholder="封面图 URL" />
+        <el-input v-model="activityForm.coverUrl" placeholder="封面图地址" />
         <el-input v-model="activityForm.description" type="textarea" :rows="4" placeholder="活动说明" />
         <el-input-number v-model="activityForm.maxCapacity" :min="1" />
         <el-button class="accent-button" @click="createActivity">保存活动</el-button>
@@ -101,7 +101,7 @@ onMounted(load)
       <h3 class="section-title">发布跑步教程</h3>
       <div class="form-stack">
         <el-input v-model="tutorialForm.title" placeholder="教程标题" />
-        <el-input v-model="tutorialForm.coverUrl" placeholder="封面图 URL" />
+        <el-input v-model="tutorialForm.coverUrl" placeholder="封面图地址" />
         <el-input v-model="tutorialForm.summary" placeholder="摘要" />
         <el-input v-model="tutorialForm.content" type="textarea" :rows="6" placeholder="教程正文" />
         <el-button class="accent-button" @click="createTutorial">保存教程</el-button>

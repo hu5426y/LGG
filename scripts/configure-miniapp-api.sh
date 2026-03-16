@@ -8,41 +8,10 @@ is_wsl() {
   grep -qi microsoft /proc/version 2>/dev/null
 }
 
-resolve_windows_lan_ip() {
-  if ! is_wsl || ! command -v powershell.exe >/dev/null 2>&1; then
-    return
-  fi
-
-  local windows_ip
-  windows_ip="$(
-    powershell.exe -NoProfile -Command "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Get-NetIPConfiguration | Where-Object { \$_.NetAdapter.Status -eq 'Up' -and \$_.IPv4DefaultGateway -ne \$null -and \$_.IPv4Address -ne \$null -and \$_.InterfaceAlias -notmatch 'WSL|Hyper-V|vEthernet|VMware|VirtualBox|Loopback|Bluetooth|\u84dd\u7259' } | ForEach-Object { \$_.IPv4Address.IPAddress } | Select-Object -First 1" 2>/dev/null | tr -d '\r'
-  )"
-
-  if [[ "$windows_ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-    printf '%s\n' "$windows_ip"
-  fi
-}
-
 resolve_default_url() {
   if [[ -n "${MINIAPP_API_BASE_URL:-}" ]]; then
     printf '%s\n' "$MINIAPP_API_BASE_URL"
     return
-  fi
-
-  if is_wsl; then
-    local windows_lan_ip
-    windows_lan_ip="$(resolve_windows_lan_ip)"
-    if [[ -n "$windows_lan_ip" ]]; then
-      printf 'http://%s:8080/api\n' "$windows_lan_ip"
-      return
-    fi
-
-    local wsl_ip
-    wsl_ip="$(ip -4 addr show eth0 2>/dev/null | awk '/inet / {print $2}' | cut -d/ -f1 | head -n 1)"
-    if [[ -n "$wsl_ip" ]]; then
-      printf 'http://%s:8080/api\n' "$wsl_ip"
-      return
-    fi
   fi
 
   printf 'http://127.0.0.1:8080/api\n'
@@ -82,13 +51,9 @@ printf 'miniapp apiBaseUrl => %s\n' "$API_URL"
 printf 'miniapp cloudEnvId => %s\n' "${CLOUD_ENV_ID:-<empty>}"
 printf 'miniapp cloudService => %s\n' "${CLOUD_SERVICE:-<empty>}"
 
-if is_wsl && [[ "$API_URL" != https://* ]]; then
-  printf 'WSL detected: preferring the Windows LAN IP so WeChat DevTools and devices on the same LAN can reach the backend.\n'
-  printf 'Override at any time with: ./scripts/configure-miniapp-api.sh <custom-http-or-https-url>\n'
-fi
-
 if [[ "$API_URL" == https://* ]]; then
   printf '当前地址适合真机调试。请确认它已加入微信小程序 request 合法域名，或在开发环境中关闭校验。\n'
 else
-  printf '当前地址更适合本地联调。真机调试建议改成手机可访问的 HTTPS 公网地址，或确保手机和电脑在同一局域网。\n'
+  printf '当前地址默认用于开发者工具本地联调。真机调试时请改成手机可访问的 HTTPS 公网地址。\n'
+  printf '如需覆盖，执行：./scripts/configure-miniapp-api.sh <custom-http-or-https-url>\n'
 fi

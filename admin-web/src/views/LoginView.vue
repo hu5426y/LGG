@@ -30,7 +30,7 @@ async function submit() {
   <div class="login-wrap">
     <div class="login-card">
       <section class="login-hero">
-        <span class="brand-kicker" style="background: rgba(255,255,255,0.16); color: white;">Ops Console</span>
+        <span class="brand-kicker" style="background: rgba(255,255,255,0.16); color: white;">运营后台</span>
         <h1>校园乐跑运营控制台</h1>
         <p>用于学生账号导入、内容审核、活动运营、勋章配置与审计日志管理的统一后台。</p>
       </section>

@@ -108,9 +108,9 @@ onMounted(load)
           <div class="bullet-item"><strong>班级：</strong>{{ selected.className }}</div>
           <div class="bullet-item"><strong>学院：</strong>{{ selected.college }}</div>
           <div class="bullet-item"><strong>状态：</strong>{{ statusLabel(selected.status) }}</div>
-          <div class="bullet-item"><strong>累计里程：</strong>{{ selected.totalDistanceKm }} km</div>
+          <div class="bullet-item"><strong>累计里程：</strong>{{ selected.totalDistanceKm }} 公里</div>
           <div class="bullet-item"><strong>累计时长：</strong>{{ selected.totalDurationSeconds }} 秒</div>
-          <div class="bullet-item"><strong>积分/等级：</strong>{{ selected.points }} / Lv.{{ selected.levelValue }}</div>
+          <div class="bullet-item"><strong>积分/等级：</strong>{{ selected.points }} / {{ selected.levelValue }} 级</div>
           <div class="bullet-item"><strong>个性签名：</strong>{{ selected.bio }}</div>
         </div>
 

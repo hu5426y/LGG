@@ -17,6 +17,6 @@ next:
   1. open admin: http://127.0.0.1:5173
   2. open swagger: http://127.0.0.1:8080/swagger-ui.html
   3. import miniapp into WeChat DevTools
-  4. if using Windows WeChat DevTools + WSL backend, re-run:
-     ./scripts/configure-miniapp-api.sh
+  4. if you need real-device debugging, override miniapp apiBaseUrl with:
+     ./scripts/configure-miniapp-api.sh <https-public-url>
 EOF

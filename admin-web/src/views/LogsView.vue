@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import http from '../api/http'
+import { auditActionLabel, auditTargetTypeLabel, formatAuditDetail } from '../utils/display'
 
 const logs = ref([])
 
@@ -22,10 +23,22 @@ onMounted(load)
     <h3 class="section-title">操作日志</h3>
     <el-table :data="logs" style="width: 100%">
       <el-table-column prop="createdAt" label="时间" min-width="180" />
-      <el-table-column prop="action" label="动作" width="180" />
-      <el-table-column prop="targetType" label="对象类型" width="140" />
-      <el-table-column prop="targetId" label="对象 ID" width="120" />
-      <el-table-column prop="detail" label="详情" min-width="260" show-overflow-tooltip />
+      <el-table-column label="操作类型" width="180">
+        <template #default="{ row }">
+          {{ auditActionLabel(row.action) }}
+        </template>
+      </el-table-column>
+      <el-table-column label="对象类型" width="140">
+        <template #default="{ row }">
+          {{ auditTargetTypeLabel(row.targetType) }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="targetId" label="对象编号" width="120" />
+      <el-table-column label="详情" min-width="260" show-overflow-tooltip>
+        <template #default="{ row }">
+          {{ formatAuditDetail(row.action, row.detail) }}
+        </template>
+      </el-table-column>
     </el-table>
   </section>
 </template>

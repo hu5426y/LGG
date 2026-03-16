@@ -50,30 +50,30 @@ function renderCharts() {
     trendChart = trendChart || echarts.init(trendChartRef.value)
     trendChart.setOption({
       tooltip: { trigger: 'axis' },
-      legend: { data: ['Active Runners', 'Daily Distance', 'Plan Completions'] },
+      legend: { data: ['活跃跑者', '当日里程', '计划完成数'] },
       xAxis: {
         type: 'category',
         data: trends.value.map((item) => item.date)
       },
       yAxis: [
-        { type: 'value', name: 'Users / Plans' },
-        { type: 'value', name: 'KM' }
+        { type: 'value', name: '人数 / 次数' },
+        { type: 'value', name: '公里' }
       ],
       series: [
         {
-          name: 'Active Runners',
+          name: '活跃跑者',
           type: 'line',
           smooth: true,
           data: trends.value.map((item) => item.activeUsers)
         },
         {
-          name: 'Daily Distance',
+          name: '当日里程',
           type: 'bar',
           yAxisIndex: 1,
           data: trends.value.map((item) => Number(item.totalDistanceKm || 0).toFixed(1))
         },
         {
-          name: 'Plan Completions',
+          name: '计划完成数',
           type: 'line',
           smooth: true,
           data: trends.value.map((item) => item.completedPlans)
@@ -110,35 +110,35 @@ onBeforeUnmount(() => {
   <div class="grid-stack">
     <section class="metrics-grid">
       <article class="metric-card">
-        <div class="metric-label">Today Active Runners</div>
+        <div class="metric-label">今日活跃跑者</div>
         <div class="metric-value">{{ overview.today.activeUsers }}</div>
       </article>
       <article class="metric-card">
-        <div class="metric-label">Today Distance</div>
-        <div class="metric-value">{{ Number(overview.today.totalDistanceKm || 0).toFixed(1) }} km</div>
+        <div class="metric-label">今日里程</div>
+        <div class="metric-value">{{ Number(overview.today.totalDistanceKm || 0).toFixed(1) }} 公里</div>
       </article>
       <article class="metric-card">
-        <div class="metric-label">Avg Pace</div>
+        <div class="metric-label">平均配速</div>
         <div class="metric-value">{{ formatPace(overview.today.averagePaceSeconds) }}</div>
       </article>
       <article class="metric-card">
-        <div class="metric-label">Check-ins</div>
+        <div class="metric-label">打卡人数</div>
         <div class="metric-value">{{ overview.today.checkinUsers }}</div>
       </article>
     </section>
 
     <section class="two-column">
       <div class="page-card">
-        <h3 class="section-title">Trend Chart</h3>
+        <h3 class="section-title">趋势图</h3>
         <div ref="trendChartRef" class="chart-box"></div>
       </div>
 
       <div class="page-card">
-        <h3 class="section-title">Check-in Streaks</h3>
+        <h3 class="section-title">连续打卡分布</h3>
         <div ref="streakChartRef" class="chart-box"></div>
         <div class="bullet-list">
-          <div class="bullet-item">Students: {{ overview.totals.students }}</div>
-          <div class="bullet-item">Squad Members: {{ overview.totals.joinedSquadMembers }}</div>
+          <div class="bullet-item">学生总数：{{ overview.totals.students }}</div>
+          <div class="bullet-item">跑团成员数：{{ overview.totals.joinedSquadMembers }}</div>
         </div>
       </div>
     </section>

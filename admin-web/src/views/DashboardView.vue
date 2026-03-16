@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import http from '../api/http'
+import { auditActionLabel, auditTargetTypeLabel, formatAuditDetail } from '../utils/display'
 
 const defaultDashboard = {
   studentCount: 0,
@@ -40,7 +41,7 @@ onMounted(load)
       </article>
       <article class="metric-card">
         <div class="metric-label">累计里程</div>
-        <div class="metric-value">{{ totalDistanceKmText }} km</div>
+        <div class="metric-value">{{ totalDistanceKmText }} 公里</div>
       </article>
       <article class="metric-card">
         <div class="metric-label">累计积分</div>
@@ -66,9 +67,9 @@ onMounted(load)
         <h3 class="section-title">最近日志</h3>
         <div class="timeline-list">
           <div v-for="log in latestLogs" :key="log.id" class="timeline-item">
-            <strong>{{ log.action }}</strong>
-            <div>{{ log.targetType }} / {{ log.targetId || '-' }}</div>
-            <small>{{ log.detail }}</small>
+            <strong>{{ auditActionLabel(log.action) }}</strong>
+            <div>{{ auditTargetTypeLabel(log.targetType) }} / {{ log.targetId || '-' }}</div>
+            <small>{{ formatAuditDetail(log.action, log.detail) }}</small>
           </div>
         </div>
       </div>
