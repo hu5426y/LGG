@@ -1,4 +1,10 @@
-const config = require('./config')
+let config
+
+try {
+  config = require('./config')
+} catch (error) {
+  config = require('./config.example')
+}
 
 App({
   globalData: {

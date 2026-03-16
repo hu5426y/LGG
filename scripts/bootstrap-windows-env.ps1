@@ -805,8 +805,12 @@ try {
 
     Ensure-MySqlSoftware
 
-    Ensure-WingetPackage -PackageId "Memurai.MemuraiDeveloper" -DisplayName "Memurai Developer" -Satisfied {
-        $null -ne (Get-MemuraiExePath)
+    if (-not $SkipMemuraiConfiguration) {
+        Ensure-WingetPackage -PackageId "Memurai.MemuraiDeveloper" -DisplayName "Memurai Developer" -Satisfied {
+            $null -ne (Get-MemuraiExePath)
+        }
+    } else {
+        Write-Info "Skipping Memurai installation/configuration by request."
     }
 
     if ($IncludeWeixinDevTools) {
@@ -827,8 +831,6 @@ try {
 
     if (-not $SkipMemuraiConfiguration) {
         Ensure-MemuraiService
-    } else {
-        Write-Info "Skipping Memurai configuration by request."
     }
 
     Show-ValidationSummary

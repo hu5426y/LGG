@@ -90,6 +90,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap-windows-env.ps1 -In
 powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap-windows-env.ps1 -SkipMySqlConfiguration -SkipMemuraiConfiguration
 ```
 
+这里的 `-SkipMemuraiConfiguration` 会同时跳过 `Memurai` 的安装和 Windows 服务配置，适合先把 Java、Maven、Node、MySQL 跑通，再单独处理 Redis。
+
 说明：
 
 - 脚本必须用管理员权限运行
@@ -123,7 +125,13 @@ node -v
 npm -v
 ```
 
-7. 第一次启动后端时，优先手动启动，便于直接看报错：
+7. 先初始化项目开发库和业务账号：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\init-dev-mysql.ps1
+```
+
+8. 第一次启动后端时，优先手动启动，便于直接看报错：
 
 ```powershell
 cd .\backend
@@ -138,16 +146,16 @@ $env:CAMPUSRUN_RUN_ALLOW_SIMULATED_RUNS="true"
 mvn spring-boot:run
 ```
 
-8. 等到后端日志出现 `Started CampusRunApplication`
-9. 另开一个 `PowerShell` 窗口，到 [admin-web](/home/huge/dev/LJJ/admin-web) 执行：
+9. 等到后端日志出现 `Started CampusRunApplication`
+10. 另开一个 `PowerShell` 窗口，到 [admin-web](/home/huge/dev/LJJ/admin-web) 执行：
 
 ```powershell
 cd .\admin-web
 npm.cmd run dev -- --host 127.0.0.1
 ```
 
-10. 浏览器打开 `http://127.0.0.1:5173`
-11. 如果手动启动确认没有问题，再回过头使用 `dev-up-windows.ps1`
+11. 浏览器打开 `http://127.0.0.1:5173`
+12. 如果手动启动确认没有问题，再回过头使用 `dev-up-windows.ps1`
 
 如果你希望全程走脚本，建议至少等第一次手动启动成功后再切回脚本模式，这样后续排障成本会低很多。
 
@@ -522,7 +530,32 @@ Set-ExecutionPolicy -Scope Process Bypass
 npm run dev -- --host 127.0.0.1
 ```
 
-### 16.10 自动脚本执行后，当前终端还是找不到新命令
+### 16.10 安装 `Memurai` 时出现 `InternetOpenUrl() failed` / `0x80072eff`
+
+这通常不是项目代码问题，而是 `winget` 拉取源或下载安装包时的网络异常。常见原因包括：
+
+- 代理设置不正确
+- 公司网络或校园网拦截了 `winget` 源
+- `Microsoft Store` / `App Installer` 源状态异常
+- 当前机器临时网络抖动
+
+可以先绕过 `Memurai`，把其余环境装完：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap-windows-env.ps1 -SkipMemuraiConfiguration
+```
+
+然后再单独检查：
+
+```powershell
+winget source list
+winget source update
+winget install --exact --id Memurai.MemuraiDeveloper --source winget --accept-package-agreements --accept-source-agreements
+```
+
+如果仍然失败，就不要继续卡在自动安装脚本里，改成手动安装任意一个可监听 `127.0.0.1:6379` 的 Redis 兼容服务也可以。
+
+### 16.11 自动脚本执行后，当前终端还是找不到新命令
 
 关闭 PowerShell，重新打开一个管理员 PowerShell，再执行：
 
@@ -536,32 +569,41 @@ npm -v
 
 如果是运行 [scripts/dev-up-windows.ps1](/home/huge/dev/LJJ/scripts/dev-up-windows.ps1) 时才出现这个问题，先更新到当前仓库版本。当前脚本已经会在启动前主动刷新注册表中的 `PATH`、`JAVA_HOME`、`MAVEN_HOME`。
 
-### 16.11 后端报 `Access denied for user 'campus'@'localhost'`
+### 16.12 后端报 `Access denied for user 'campus'@'localhost'`
 
 这说明：
 
 - MySQL 已经启动
 - 但业务账号 `campus` 不存在，或密码不对，或授权不对
 
-先验证 root：
+先执行仓库里的初始化脚本：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\init-dev-mysql.ps1
+```
+
+脚本会做这几件事：
+
+- 创建 `campus_run`
+- 创建或重置 `campus / campus123`
+- 给 `campus_run` 授权
+- 用 `campus` 再回连一次做校验
+
+如果你想显式指定端口：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\init-dev-mysql.ps1 -MySqlPort 3306
+```
+
+如果脚本提示 root 密码不对，再手动验证 root：
 
 ```powershell
 & "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -h localhost -P 3306 -u root "-p你的root密码" -e "SELECT VERSION();"
 ```
 
-再重建业务账号：
+修好后重新回到 [backend](/home/huge/dev/LJJ/backend) 执行 `mvn spring-boot:run`。
 
-```powershell
-& "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -h localhost -P 3306 -u root "-p你的root密码" -e "CREATE DATABASE IF NOT EXISTS campus_run CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS 'campus'@'localhost' IDENTIFIED BY 'campus123'; ALTER USER 'campus'@'localhost' IDENTIFIED BY 'campus123'; GRANT ALL PRIVILEGES ON campus_run.* TO 'campus'@'localhost'; FLUSH PRIVILEGES;"
-```
-
-再验证：
-
-```powershell
-& "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe" -h localhost -P 3306 -u campus "-pcampus123" -e "SHOW DATABASES;"
-```
-
-### 16.12 使用脚本启动后登录接口返回 `500`
+### 16.13 使用脚本启动后登录接口返回 `500`
 
 先不要立刻判断是账号密码错误，先确认后端是否真的已经完成启动。
 

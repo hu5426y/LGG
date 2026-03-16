@@ -50,6 +50,44 @@ function Test-CommandExists {
     return $null -ne (Get-Command $CommandName -ErrorAction SilentlyContinue)
 }
 
+function Get-MySqlCliPath {
+    $command = Get-Command mysql.exe -ErrorAction SilentlyContinue
+    if ($null -ne $command) {
+        return $command.Source
+    }
+
+    $candidates = @(
+        "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe",
+        "C:\Program Files\MySQL\MySQL Server 8.3\bin\mysql.exe",
+        "C:\Program Files\MySQL\MySQL Server 8.2\bin\mysql.exe",
+        "C:\Program Files\MySQL\MySQL Server 8.1\bin\mysql.exe",
+        "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
+    )
+
+    foreach ($path in $candidates) {
+        if (Test-Path $path) {
+            return $path
+        }
+    }
+
+    return $null
+}
+
+function Test-MySqlLogin {
+    param(
+        [string]$Username,
+        [string]$Password
+    )
+
+    $mysqlCli = Get-MySqlCliPath
+    if ([string]::IsNullOrWhiteSpace($mysqlCli)) {
+        return $false
+    }
+
+    & $mysqlCli --protocol=TCP -h localhost -P $MySqlPort -u $Username "-p$Password" --execute="SELECT 1;" *> $null
+    return $LASTEXITCODE -eq 0
+}
+
 function Test-PortOpen {
     param([int]$Port)
 
@@ -176,6 +214,15 @@ function Ensure-Infrastructure {
     return $startedServices
 }
 
+function Assert-DatabaseReady {
+    if (Test-MySqlLogin -Username "campus" -Password "campus123") {
+        return
+    }
+
+    $initScript = Join-Path $scriptDir "init-dev-mysql.ps1"
+    throw "MySQL is reachable on 127.0.0.1:$MySqlPort, but the dev account campus/campus123 cannot log in. Run powershell -ExecutionPolicy Bypass -File $initScript first."
+}
+
 function Ensure-MiniappConfig {
     Write-Step "Preparing miniapp/config.js"
 
@@ -271,6 +318,7 @@ function Start-ManagedProcess {
 Assert-Prerequisites
 Assert-NotRunning
 $startedServices = Ensure-Infrastructure
+Assert-DatabaseReady
 Ensure-MiniappConfig
 Ensure-AdminDependencies
 
