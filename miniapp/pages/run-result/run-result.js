@@ -1,7 +1,7 @@
 const request = require('../../services/request')
 const { requireLogin } = require('../../utils/auth')
 const { formatDuration, formatDateTime, formatPaceSeconds } = require('../../utils/format')
-const { normalizeRoutePoints, buildMapState } = require('../../utils/run-map')
+const { normalizeRoutePoints, sampleRoutePoints, buildMapState } = require('../../utils/run-map')
 
 Page({
   data: {
@@ -10,6 +10,7 @@ Page({
     errorMessage: '',
     run: null,
     routePoints: [],
+    routePointCount: 0,
     ...buildMapState([], null)
   },
 
@@ -40,11 +41,14 @@ Page({
     })
     try {
       const detail = await request.get(`/runs/${this.data.runId}`)
-      const routePoints = normalizeRoutePoints(detail?.routePoints)
+      const detailRoutePoints = normalizeRoutePoints(detail?.routePoints)
+      const routePoints = sampleRoutePoints(detailRoutePoints, 200)
+      const routePointCount = Number(detail?.routePointCount || detailRoutePoints.length || 0)
       const mapState = buildMapState(routePoints, routePoints[routePoints.length - 1] || null)
       this.setData({
         loading: false,
         routePoints,
+        routePointCount,
         run: {
           ...detail,
           displayDuration: formatDuration(Number(detail?.durationSeconds || 0)),

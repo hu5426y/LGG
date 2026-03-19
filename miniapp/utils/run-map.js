@@ -25,6 +25,37 @@ function normalizeRoutePoints(routePoints) {
     .filter(Boolean)
 }
 
+function sampleRoutePoints(routePoints, maxPoints = 200) {
+  const normalizedRoutePoints = normalizeRoutePoints(routePoints)
+  if (normalizedRoutePoints.length <= maxPoints) {
+    return normalizedRoutePoints
+  }
+
+  const safeMaxPoints = Math.max(2, Number(maxPoints) || 200)
+  const sampledPoints = []
+  const usedIndexes = new Set()
+  const step = (normalizedRoutePoints.length - 1) / (safeMaxPoints - 1)
+
+  for (let index = 0; index < safeMaxPoints; index += 1) {
+    const pointIndex = Math.min(
+      normalizedRoutePoints.length - 1,
+      Math.round(index * step)
+    )
+    if (usedIndexes.has(pointIndex)) {
+      continue
+    }
+    usedIndexes.add(pointIndex)
+    sampledPoints.push(normalizedRoutePoints[pointIndex])
+  }
+
+  const lastPoint = normalizedRoutePoints[normalizedRoutePoints.length - 1]
+  if (sampledPoints[sampledPoints.length - 1] !== lastPoint) {
+    sampledPoints.push(lastPoint)
+  }
+
+  return sampledPoints
+}
+
 function buildMapState(routePoints, currentPosition) {
   const normalizedRoutePoints = normalizeRoutePoints(routePoints)
   const normalizedCurrent = normalizePoint(currentPosition)
@@ -85,6 +116,7 @@ function formatLocationTimeFromPoints(routePoints) {
 module.exports = {
   normalizePoint,
   normalizeRoutePoints,
+  sampleRoutePoints,
   buildMapState,
   formatLocationTimeFromPoints
 }

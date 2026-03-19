@@ -17,7 +17,7 @@
       <view class="section-link">{{latestRun ? '最近轨迹预览' : (mapReady ? '当前位置' : '等待定位')}}</view>
     </view>
     <map
-      wx:if="{{mapReady}}"
+      wx:if="{{showMap && mapReady}}"
       class="home-map"
       subkey="{{mapSubKey}}"
       latitude="{{mapLatitude}}"

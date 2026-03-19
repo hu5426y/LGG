@@ -39,7 +39,9 @@
         <view class="section-title">暂无轨迹</view>
         <view class="muted">这次记录没有保存轨迹点，暂时无法展示地图路线。</view>
       </view>
-      <view class="muted map-note">共记录 {{routePoints.length}} 个轨迹点，地图会自动聚焦本次跑步范围。</view>
+      <view class="muted map-note">
+        共记录 {{routePointCount}} 个轨迹点，地图展示 {{routePoints.length}} 个抽样点以保证页面流畅。
+      </view>
     </view>
 
     <view class="metrics-grid">
@@ -57,7 +59,7 @@
       </view>
       <view class="metric-card">
         <view class="metric-label">轨迹点</view>
-        <view class="metric-value">{{routePoints.length}}</view>
+        <view class="metric-value">{{routePointCount}}</view>
       </view>
     </view>
 

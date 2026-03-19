@@ -1,7 +1,7 @@
 const request = require('../../services/request')
 const { requireLogin } = require('../../utils/auth')
 const { navigateTo, switchTab, openBannerTarget } = require('../../utils/navigation')
-const { buildMapState, normalizeRoutePoints, normalizePoint } = require('../../utils/run-map')
+const { buildMapState, normalizeRoutePoints, normalizePoint, sampleRoutePoints } = require('../../utils/run-map')
 
 function safeList(value) {
   return Array.isArray(value) ? value : []
@@ -15,6 +15,7 @@ Page({
   data: {
     loading: true,
     errorMessage: '',
+    showMap: true,
     mapSubKey: '',
     homeData: {
       banners: [],
@@ -54,10 +55,27 @@ Page({
     await this.loadData()
   },
 
+  onHide() {
+    if (this.data.showMap) {
+      this.setData({
+        showMap: false
+      })
+    }
+  },
+
+  onUnload() {
+    if (this.data.showMap) {
+      this.setData({
+        showMap: false
+      })
+    }
+  },
+
   async loadData() {
     this.setData({
       loading: true,
       errorMessage: '',
+      showMap: true,
       mapSubKey: getApp().globalData.mapSubKey || ''
     })
     try {
@@ -102,6 +120,12 @@ Page({
           ? currentPlan
           : { active: false, currentDayIndex: 1, template: null, days: [] },
         latestRun: latestRunDetail
+          ? {
+              id: latestRunDetail.id,
+              routePointCount: safeNumber(latestRunDetail.routePointCount, 0),
+              finishedAt: latestRunDetail.finishedAt || latestRunDetail.startedAt || ''
+            }
+          : null
       })
     } catch (error) {
       this.setData({
@@ -112,7 +136,7 @@ Page({
   },
 
   async applyMapPreview(latestRunDetail) {
-    const routePoints = normalizeRoutePoints(latestRunDetail?.routePoints)
+    const routePoints = sampleRoutePoints(normalizeRoutePoints(latestRunDetail?.routePoints), 120)
     if (routePoints.length) {
       this.setData({
         ...buildMapState(routePoints, routePoints[routePoints.length - 1])
@@ -142,24 +166,53 @@ Page({
     }
   },
 
+  navigateFromHome(navigateAction) {
+    if (typeof navigateAction !== 'function') {
+      return
+    }
+    if (!this.data.showMap) {
+      navigateAction()
+      return
+    }
+    this.setData({
+      showMap: false
+    }, () => {
+      if (typeof wx.nextTick === 'function') {
+        wx.nextTick(navigateAction)
+        return
+      }
+      setTimeout(navigateAction, 0)
+    })
+  },
+
   goRun() {
-    switchTab('/pages/run/run')
+    this.navigateFromHome(() => {
+      switchTab('/pages/run/run')
+    })
   },
 
   goActivities() {
-    switchTab('/pages/activities/activities')
+    this.navigateFromHome(() => {
+      switchTab('/pages/activities/activities')
+    })
   },
 
   goSocial() {
-    switchTab('/pages/social/social')
+    this.navigateFromHome(() => {
+      switchTab('/pages/social/social')
+    })
   },
 
   goGrowthCenter() {
-    navigateTo('/pages/growth-center/growth-center')
+    this.navigateFromHome(() => {
+      navigateTo('/pages/growth-center/growth-center')
+    })
   },
 
   goRanking() {
-    navigateTo('/pages/ranking/ranking')
+    this.navigateFromHome(() => {
+      navigateTo('/pages/ranking/ranking')
+    })
   },
 
   openBanner(event) {
@@ -178,7 +231,9 @@ Page({
     if (!id) {
       return
     }
-    navigateTo(`/pages/post-detail/post-detail?id=${id}`)
+    this.navigateFromHome(() => {
+      navigateTo(`/pages/post-detail/post-detail?id=${id}`)
+    })
   },
 
   openActivityDetail(event) {
@@ -186,7 +241,9 @@ Page({
     if (!id) {
       return
     }
-    navigateTo(`/pages/activity-detail/activity-detail?id=${id}`)
+    this.navigateFromHome(() => {
+      navigateTo(`/pages/activity-detail/activity-detail?id=${id}`)
+    })
   },
 
   openTutorialDetail(event) {
@@ -194,6 +251,8 @@ Page({
     if (!id) {
       return
     }
-    navigateTo(`/pages/tutorial-detail/tutorial-detail?id=${id}`)
+    this.navigateFromHome(() => {
+      navigateTo(`/pages/tutorial-detail/tutorial-detail?id=${id}`)
+    })
   }
 })
