@@ -2,7 +2,8 @@ param(
     [int]$MySqlPort = 3306,
     [int]$RedisPort = 6379,
     [string]$ApiBaseUrl = "http://127.0.0.1:8080/api",
-    [switch]$SkipNpmInstall
+    [switch]$SkipNpmInstall,
+    [int]$StartupTimeoutSeconds = 300
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,6 +17,8 @@ $runtimeDir = Join-Path $scriptDir ".runtime/windows"
 $stateFile = Join-Path $runtimeDir "state.json"
 $backendLog = Join-Path $runtimeDir "backend.log"
 $adminLog = Join-Path $runtimeDir "admin-web.log"
+$backendPort = 8080
+$adminPort = 5173
 
 New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
 
@@ -48,6 +51,20 @@ function Refresh-EnvironmentFromRegistry {
 function Test-CommandExists {
     param([string]$CommandName)
     return $null -ne (Get-Command $CommandName -ErrorAction SilentlyContinue)
+}
+
+function Get-NpmCliPath {
+    $npmCmd = Get-Command "npm.cmd" -ErrorAction SilentlyContinue
+    if ($null -ne $npmCmd) {
+        return $npmCmd.Source
+    }
+
+    $npm = Get-Command "npm" -ErrorAction SilentlyContinue
+    if ($null -ne $npm) {
+        return $npm.Source
+    }
+
+    return $null
 }
 
 function Get-MySqlCliPath {
@@ -137,10 +154,14 @@ function Assert-Prerequisites {
     Refresh-EnvironmentFromRegistry
 
     $missing = @()
-    foreach ($cmd in @("java", "mvn", "node", "npm")) {
+    foreach ($cmd in @("java", "mvn", "node")) {
         if (-not (Test-CommandExists -CommandName $cmd)) {
             $missing += $cmd
         }
+    }
+
+    if ([string]::IsNullOrWhiteSpace((Get-NpmCliPath))) {
+        $missing += "npm"
     }
 
     if ($missing.Count -gt 0) {
@@ -190,7 +211,7 @@ function Ensure-Infrastructure {
     $startedServices = @()
 
     if (-not (Test-PortOpen -Port $MySqlPort)) {
-        $mysqlState = Start-ServiceIfAvailable -CandidateNames @("MySQL80", "MySQL", "mysql") -DisplayLabel "MySQL"
+        $mysqlState = Start-ServiceIfAvailable -CandidateNames @("MySQL84", "MySQL83", "MySQL82", "MySQL81", "MySQL80", "MySQL57", "MySQL", "mysql") -DisplayLabel "MySQL"
         if ($null -ne $mysqlState) {
             $startedServices += $mysqlState
         }
@@ -201,7 +222,7 @@ function Ensure-Infrastructure {
     }
 
     if (-not (Test-PortOpen -Port $RedisPort)) {
-        $redisState = Start-ServiceIfAvailable -CandidateNames @("Memurai", "Redis", "RedisService") -DisplayLabel "Redis"
+        $redisState = Start-ServiceIfAvailable -CandidateNames @("Memurai", "MemuraiDeveloper", "Redis", "RedisService") -DisplayLabel "Redis"
         if ($null -ne $redisState) {
             $startedServices += $redisState
         }
@@ -241,6 +262,19 @@ module.exports = {
     Write-Host "miniapp apiBaseUrl => $ApiBaseUrl"
 }
 
+function Get-LogExcerpt {
+    param(
+        [string]$LogFile,
+        [int]$TailLines = 40
+    )
+
+    if (-not (Test-Path $LogFile)) {
+        return ""
+    }
+
+    return (Get-Content -Path $LogFile -Tail $TailLines | Out-String).Trim()
+}
+
 function Ensure-AdminDependencies {
     if ($SkipNpmInstall) {
         return
@@ -251,9 +285,17 @@ function Ensure-AdminDependencies {
     }
 
     Write-Step "Installing admin-web dependencies"
+    $npmCli = Get-NpmCliPath
+    if ([string]::IsNullOrWhiteSpace($npmCli)) {
+        throw "npm was not found. Install Node.js 20 LTS first."
+    }
+
     Push-Location $adminDir
     try {
-        & npm install
+        & $npmCli install
+        if ($LASTEXITCODE -ne 0) {
+            throw "npm install failed in $adminDir."
+        }
     } finally {
         Pop-Location
     }
@@ -300,10 +342,7 @@ function Start-ManagedProcess {
 
     Start-Sleep -Seconds 2
     if ($process.HasExited) {
-        $logExcerpt = ""
-        if (Test-Path $LogFile) {
-            $logExcerpt = (Get-Content -Path $LogFile -Tail 20 | Out-String).Trim()
-        }
+        $logExcerpt = Get-LogExcerpt -LogFile $LogFile -TailLines 20
         throw "$Name failed to start. Log: $LogFile`n$logExcerpt"
     }
 
@@ -313,6 +352,35 @@ function Start-ManagedProcess {
         pid = $process.Id
         logFile = $LogFile
     }
+}
+
+function Wait-ManagedProcessReady {
+    param(
+        [string]$Name,
+        [int]$Pid,
+        [int]$Port,
+        [string]$LogFile,
+        [int]$TimeoutSeconds = 300
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        $proc = Get-Process -Id $Pid -ErrorAction SilentlyContinue
+        if ($null -eq $proc) {
+            $logExcerpt = Get-LogExcerpt -LogFile $LogFile
+            throw "$Name exited before listening on 127.0.0.1:$Port. Log: $LogFile`n$logExcerpt"
+        }
+
+        if (Test-PortOpen -Port $Port) {
+            Write-Host "$Name is reachable on 127.0.0.1:$Port"
+            return
+        }
+
+        Start-Sleep -Seconds 2
+    }
+
+    $logExcerpt = Get-LogExcerpt -LogFile $LogFile
+    throw "$Name did not become ready on 127.0.0.1:$Port within $TimeoutSeconds seconds. Log: $LogFile`n$logExcerpt"
 }
 
 Assert-Prerequisites
@@ -325,10 +393,15 @@ Ensure-AdminDependencies
 Write-Step "Starting backend and admin-web"
 
 $backendCommand = "set `"SPRING_PROFILES_ACTIVE=dev`" && set `"SPRING_DATASOURCE_URL=jdbc:mysql://localhost:$MySqlPort/campus_run?useUnicode=true^&characterEncoding=UTF-8^&serverTimezone=Asia/Shanghai`" && set `"SPRING_DATASOURCE_USERNAME=campus`" && set `"SPRING_DATASOURCE_PASSWORD=campus123`" && set `"SPRING_DATA_REDIS_HOST=localhost`" && set `"SPRING_DATA_REDIS_PORT=$RedisPort`" && set `"CAMPUSRUN_SWAGGER_ENABLED=true`" && set `"CAMPUSRUN_RUN_ALLOW_SIMULATED_RUNS=true`" && cd /d `"$backendDir`" && mvn spring-boot:run"
-$adminCommand = "cd /d `"$adminDir`" && npm run dev -- --host 127.0.0.1"
+$adminCommand = "cd /d `"$adminDir`" && npm.cmd run dev -- --host 127.0.0.1"
 
 $backendProcess = Start-ManagedProcess -Name "backend" -CommandLine $backendCommand -LogFile $backendLog
+Write-Host "Waiting for backend readiness. First startup may take several minutes while Maven downloads dependencies."
+Wait-ManagedProcessReady -Name "backend" -Pid $backendProcess.pid -Port $backendPort -LogFile $backendLog -TimeoutSeconds $StartupTimeoutSeconds
+
 $adminProcess = Start-ManagedProcess -Name "admin-web" -CommandLine $adminCommand -LogFile $adminLog
+Write-Host "Waiting for admin-web readiness."
+Wait-ManagedProcessReady -Name "admin-web" -Pid $adminProcess.pid -Port $adminPort -LogFile $adminLog -TimeoutSeconds 60
 
 $state = @{
     createdAt = (Get-Date).ToString("s")
@@ -339,9 +412,9 @@ $state | ConvertTo-Json -Depth 4 | Set-Content -Path $stateFile -Encoding UTF8
 
 Write-Host ""
 Write-Host "Windows local dev started." -ForegroundColor Green
-Write-Host "Admin:   http://127.0.0.1:5173"
-Write-Host "Swagger: http://127.0.0.1:8080/swagger-ui.html"
-Write-Host "Health:  http://127.0.0.1:8080/actuator/health"
+Write-Host "Admin:   http://127.0.0.1:$adminPort"
+Write-Host "Swagger: http://127.0.0.1:$backendPort/swagger-ui.html"
+Write-Host "Health:  http://127.0.0.1:$backendPort/actuator/health"
 Write-Host "Miniapp config: $miniappDir\config.js"
 Write-Host ""
 Write-Host "Stop with: powershell -ExecutionPolicy Bypass -File scripts/dev-down-windows.ps1"
