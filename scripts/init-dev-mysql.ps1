@@ -17,7 +17,7 @@ function ConvertTo-PlainText {
 
     $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureString)
     try {
-        return [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+        return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
     } finally {
         [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
     }
@@ -56,6 +56,37 @@ function Get-MySqlCliPath {
     throw "mysql.exe was not found. Install MySQL Server first or add it to PATH."
 }
 
+function New-MySqlDefaultsFile {
+    param([string]$Password)
+
+    if ([string]::IsNullOrEmpty($Password)) {
+        return $null
+    }
+
+    $defaultsFile = [System.IO.Path]::GetTempFileName()
+    Set-Content -Path $defaultsFile -Encoding ASCII -Value @(
+        "[client]",
+        "password=$Password"
+    )
+    return $defaultsFile
+}
+
+function ConvertTo-WindowsCommandLineArgument {
+    param([string]$Value)
+
+    if ($null -eq $Value) {
+        return '""'
+    }
+
+    if ($Value -notmatch '[\s"]') {
+        return $Value
+    }
+
+    $escaped = $Value -replace '(\\*)"', '$1$1\"'
+    $escaped = $escaped -replace '(\\+)$', '$1$1'
+    return '"' + $escaped + '"'
+}
+
 function Invoke-MySqlSql {
     param(
         [string]$MySqlCli,
@@ -64,21 +95,63 @@ function Invoke-MySqlSql {
         [string]$Sql
     )
 
-    $arguments = @(
-        "--protocol=TCP",
-        "-h", "localhost",
-        "-P", $MySqlPort.ToString(),
-        "-u", $Username,
-        "--execute=$Sql"
-    )
+    $defaultsFile = New-MySqlDefaultsFile -Password $Password
+    $normalizedSql = (($Sql -split "`r?`n") | ForEach-Object { $_.Trim() } | Where-Object { $_ }) -join " "
+    $stdoutFile = [System.IO.Path]::GetTempFileName()
+    $stderrFile = [System.IO.Path]::GetTempFileName()
 
-    if (-not [string]::IsNullOrEmpty($Password)) {
-        $arguments += "-p$Password"
-    }
+    try {
+        $arguments = @()
+        if (-not [string]::IsNullOrWhiteSpace($defaultsFile)) {
+            $arguments += "--defaults-extra-file=$defaultsFile"
+        }
+        $arguments += @(
+            "--protocol=TCP",
+            "-h", "localhost",
+            "-P", $MySqlPort.ToString(),
+            "-u", $Username,
+            "--execute=$normalizedSql"
+        )
+        $argumentLine = ($arguments | ForEach-Object { ConvertTo-WindowsCommandLineArgument -Value $_ }) -join " "
 
-    & $MySqlCli @arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "mysql.exe returned exit code $LASTEXITCODE."
+        $process = Start-Process -FilePath $MySqlCli `
+            -ArgumentList $argumentLine `
+            -NoNewWindow `
+            -Wait `
+            -PassThru `
+            -RedirectStandardOutput $stdoutFile `
+            -RedirectStandardError $stderrFile
+
+        if ($process.ExitCode -ne 0) {
+            $stderr = ""
+            $stdout = ""
+            if (Test-Path $stderrFile) {
+                $stderr = (Get-Content -Path $stderrFile | Out-String).Trim()
+            }
+            if (Test-Path $stdoutFile) {
+                $stdout = (Get-Content -Path $stdoutFile | Out-String).Trim()
+            }
+
+            $details = @($stderr, $stdout) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+            if ($details.Count -eq 0) {
+                throw "mysql.exe returned exit code $($process.ExitCode)."
+            }
+
+            throw "mysql.exe returned exit code $($process.ExitCode): $($details -join ' | ')"
+        }
+
+        if (Test-Path $stdoutFile) {
+            $stdout = Get-Content -Path $stdoutFile -Raw
+            if (-not [string]::IsNullOrWhiteSpace($stdout)) {
+                Write-Output $stdout.Trim()
+            }
+        }
+    } finally {
+        if (-not [string]::IsNullOrWhiteSpace($defaultsFile)) {
+            Remove-Item -Force $defaultsFile -ErrorAction SilentlyContinue
+        }
+        Remove-Item -Force $stdoutFile, $stderrFile -ErrorAction SilentlyContinue
     }
 }
 
@@ -97,8 +170,11 @@ $appPasswordLiteral = ConvertTo-MySqlStringLiteral -Value $AppPassword
 $sql = @"
 CREATE DATABASE IF NOT EXISTS $Database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS $appUserLiteral@'localhost' IDENTIFIED BY $appPasswordLiteral;
+CREATE USER IF NOT EXISTS $appUserLiteral@'127.0.0.1' IDENTIFIED BY $appPasswordLiteral;
 ALTER USER $appUserLiteral@'localhost' IDENTIFIED BY $appPasswordLiteral;
+ALTER USER $appUserLiteral@'127.0.0.1' IDENTIFIED BY $appPasswordLiteral;
 GRANT ALL PRIVILEGES ON $Database.* TO $appUserLiteral@'localhost';
+GRANT ALL PRIVILEGES ON $Database.* TO $appUserLiteral@'127.0.0.1';
 FLUSH PRIVILEGES;
 "@
 

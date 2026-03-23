@@ -3,6 +3,7 @@ param(
     [int]$RedisPort = 6379,
     [string]$ApiBaseUrl = "http://127.0.0.1:8080/api",
     [switch]$SkipNpmInstall,
+    [switch]$SkipAutoInitDatabase,
     [int]$StartupTimeoutSeconds = 300
 )
 
@@ -90,6 +91,37 @@ function Get-MySqlCliPath {
     return $null
 }
 
+function New-MySqlDefaultsFile {
+    param([string]$Password)
+
+    if ([string]::IsNullOrEmpty($Password)) {
+        return $null
+    }
+
+    $defaultsFile = [System.IO.Path]::GetTempFileName()
+    Set-Content -Path $defaultsFile -Encoding ASCII -Value @(
+        "[client]",
+        "password=$Password"
+    )
+    return $defaultsFile
+}
+
+function ConvertTo-WindowsCommandLineArgument {
+    param([string]$Value)
+
+    if ($null -eq $Value) {
+        return '""'
+    }
+
+    if ($Value -notmatch '[\s"]') {
+        return $Value
+    }
+
+    $escaped = $Value -replace '(\\*)"', '$1$1\"'
+    $escaped = $escaped -replace '(\\+)$', '$1$1'
+    return '"' + $escaped + '"'
+}
+
 function Test-MySqlLogin {
     param(
         [string]$Username,
@@ -101,8 +133,39 @@ function Test-MySqlLogin {
         return $false
     }
 
-    & $mysqlCli --protocol=TCP -h localhost -P $MySqlPort -u $Username "-p$Password" --execute="SELECT 1;" *> $null
-    return $LASTEXITCODE -eq 0
+    $defaultsFile = New-MySqlDefaultsFile -Password $Password
+    $stdoutFile = [System.IO.Path]::GetTempFileName()
+    $stderrFile = [System.IO.Path]::GetTempFileName()
+
+    try {
+        $arguments = @()
+        if (-not [string]::IsNullOrWhiteSpace($defaultsFile)) {
+            $arguments += "--defaults-extra-file=$defaultsFile"
+        }
+        $arguments += @(
+            "--protocol=TCP",
+            "-h", "localhost",
+            "-P", $MySqlPort.ToString(),
+            "-u", $Username,
+            "--execute=SELECT 1;"
+        )
+        $argumentLine = ($arguments | ForEach-Object { ConvertTo-WindowsCommandLineArgument -Value $_ }) -join " "
+
+        $process = Start-Process -FilePath $mysqlCli `
+            -ArgumentList $argumentLine `
+            -NoNewWindow `
+            -Wait `
+            -PassThru `
+            -RedirectStandardOutput $stdoutFile `
+            -RedirectStandardError $stderrFile
+
+        return $process.ExitCode -eq 0
+    } finally {
+        if (-not [string]::IsNullOrWhiteSpace($defaultsFile)) {
+            Remove-Item -Force $defaultsFile -ErrorAction SilentlyContinue
+        }
+        Remove-Item -Force $stdoutFile, $stderrFile -ErrorAction SilentlyContinue
+    }
 }
 
 function Test-PortOpen {
@@ -241,7 +304,19 @@ function Assert-DatabaseReady {
     }
 
     $initScript = Join-Path $scriptDir "init-dev-mysql.ps1"
-    throw "MySQL is reachable on 127.0.0.1:$MySqlPort, but the dev account campus/campus123 cannot log in. Run powershell -ExecutionPolicy Bypass -File $initScript first."
+    if ($SkipAutoInitDatabase) {
+        throw "MySQL is reachable on 127.0.0.1:$MySqlPort, but the dev account campus/campus123 cannot log in. Run powershell -ExecutionPolicy Bypass -File $initScript first."
+    }
+
+    Write-Step "Initializing MySQL dev database and account"
+    & $initScript -MySqlPort $MySqlPort
+    if ($LASTEXITCODE -ne 0) {
+        throw "Automatic MySQL initialization failed. Run powershell -ExecutionPolicy Bypass -File $initScript manually."
+    }
+
+    if (-not (Test-MySqlLogin -Username "campus" -Password "campus123")) {
+        throw "MySQL initialization finished, but campus/campus123 still cannot log in. Run powershell -ExecutionPolicy Bypass -File $initScript manually and verify the root password."
+    }
 }
 
 function Ensure-MiniappConfig {
@@ -357,7 +432,7 @@ function Start-ManagedProcess {
 function Wait-ManagedProcessReady {
     param(
         [string]$Name,
-        [int]$Pid,
+        [int]$ProcessId,
         [int]$Port,
         [string]$LogFile,
         [int]$TimeoutSeconds = 300
@@ -365,7 +440,7 @@ function Wait-ManagedProcessReady {
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
-        $proc = Get-Process -Id $Pid -ErrorAction SilentlyContinue
+        $proc = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
         if ($null -eq $proc) {
             $logExcerpt = Get-LogExcerpt -LogFile $LogFile
             throw "$Name exited before listening on 127.0.0.1:$Port. Log: $LogFile`n$logExcerpt"
@@ -392,16 +467,16 @@ Ensure-AdminDependencies
 
 Write-Step "Starting backend and admin-web"
 
-$backendCommand = "set `"SPRING_PROFILES_ACTIVE=dev`" && set `"SPRING_DATASOURCE_URL=jdbc:mysql://localhost:$MySqlPort/campus_run?useUnicode=true^&characterEncoding=UTF-8^&serverTimezone=Asia/Shanghai`" && set `"SPRING_DATASOURCE_USERNAME=campus`" && set `"SPRING_DATASOURCE_PASSWORD=campus123`" && set `"SPRING_DATA_REDIS_HOST=localhost`" && set `"SPRING_DATA_REDIS_PORT=$RedisPort`" && set `"CAMPUSRUN_SWAGGER_ENABLED=true`" && set `"CAMPUSRUN_RUN_ALLOW_SIMULATED_RUNS=true`" && cd /d `"$backendDir`" && mvn spring-boot:run"
+$backendCommand = "set `"SPRING_PROFILES_ACTIVE=dev`" && set `"SPRING_DATASOURCE_URL=jdbc:mysql://localhost:$MySqlPort/campus_run?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai`" && set `"SPRING_DATASOURCE_USERNAME=campus`" && set `"SPRING_DATASOURCE_PASSWORD=campus123`" && set `"SPRING_DATA_REDIS_HOST=localhost`" && set `"SPRING_DATA_REDIS_PORT=$RedisPort`" && set `"CAMPUSRUN_SWAGGER_ENABLED=true`" && set `"CAMPUSRUN_RUN_ALLOW_SIMULATED_RUNS=true`" && cd /d `"$backendDir`" && mvn spring-boot:run"
 $adminCommand = "cd /d `"$adminDir`" && npm.cmd run dev -- --host 127.0.0.1"
 
 $backendProcess = Start-ManagedProcess -Name "backend" -CommandLine $backendCommand -LogFile $backendLog
 Write-Host "Waiting for backend readiness. First startup may take several minutes while Maven downloads dependencies."
-Wait-ManagedProcessReady -Name "backend" -Pid $backendProcess.pid -Port $backendPort -LogFile $backendLog -TimeoutSeconds $StartupTimeoutSeconds
+Wait-ManagedProcessReady -Name "backend" -ProcessId $backendProcess.pid -Port $backendPort -LogFile $backendLog -TimeoutSeconds $StartupTimeoutSeconds
 
 $adminProcess = Start-ManagedProcess -Name "admin-web" -CommandLine $adminCommand -LogFile $adminLog
 Write-Host "Waiting for admin-web readiness."
-Wait-ManagedProcessReady -Name "admin-web" -Pid $adminProcess.pid -Port $adminPort -LogFile $adminLog -TimeoutSeconds 60
+Wait-ManagedProcessReady -Name "admin-web" -ProcessId $adminProcess.pid -Port $adminPort -LogFile $adminLog -TimeoutSeconds 60
 
 $state = @{
     createdAt = (Get-Date).ToString("s")
