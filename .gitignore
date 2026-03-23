@@ -12,3 +12,4 @@ backend/container.config.json
 .env
 *.log
 scripts/.runtime/
+论文/
